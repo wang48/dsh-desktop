@@ -80,7 +80,6 @@ Key design points:
   use an SSH tunnel instead.
 
 ## 🗂 Data & logs
-
 | Path | Description |
 |---|---|
 | Windows: `%APPDATA%\DSH-Desktop\home\` | The app's private DSH_HOME (sessions, config, profiles) |
@@ -91,6 +90,9 @@ Key design points:
 
 The settings page is reachable by right-clicking the window title bar; the **Help** menu
 opens the data directory and the log directly.
+
+**Migrating conversations from the official DSH** (copy-only, the original stays untouched):
+see [docs/MIGRATION.md](docs/MIGRATION.md) (Chinese).
 
 ## 🛠 Development
 

@@ -5,6 +5,8 @@
 完整的 DSH Web 运行时，启动后在本地拉起 `dsh web` 服务，再用原生窗口加载 UI。
 
 > 无需安装 Node.js / pnpm，双击即用；数据与命令行版隔离。
+>
+> English docs: [README.en.md](README.en.md)。
 
 ## ✨ 特性
 
@@ -121,6 +123,11 @@ electron 二进制、koffi 原生预编译等从 GitHub 下载，国内网络可
   `%APPDATA%\DSH-Desktop` 重置数据后重试。
 - **旧版本残留**：升级前如遇异常，删除 `%APPDATA%\DSH-Desktop\home\profiles\node_modules`
   里的失效 junction（或整个数据目录），应用会自动重建。
+
+## 🗺 桌面功能路线
+
+应用升级、WebUI 开关、固定端口等桌面功能的兼容性调研与设计方案见
+[docs/FEATURES.md](docs/FEATURES.md)。
 
 ## 📁 项目结构
 

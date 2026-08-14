@@ -1,24 +1,27 @@
 'use strict'
 
 /**
- * DeepSeek Harness 桌面版 — Electron 主进程
+ * DSH-Desktop — DeepSeek Harness 桌面版 Electron 主进程
  *
  * 职责：
  *  1. 单实例锁（失败时降级继续运行）
  *  2. 立即打开窗口显示加载页，避免启动期"有进程无界面"
  *  3. 在 userData/home 下建立独立的 DSH_HOME（与命令行版数据隔离）
- *  4. 挑一个空闲端口，用 ELECTRON_RUN_AS_NODE 模式拉起内置的 `dsh web` 服务
+ *  4. 按设置（WebUI 开关 / 固定端口）用 ELECTRON_RUN_AS_NODE 模式拉起内置 `dsh web`
  *  5. 轮询 HTTP 等服务就绪，然后把窗口切换到 http://127.0.0.1:<port>
- *  6. 出错时把错误与最近日志显示在窗口内（可打开日志/重试）
- *  7. 退出时杀掉服务进程树
+ *  6. 出错时把错误与最近日志显示在窗口内（可打开日志/重试）；设置页可开关 WebUI
+ *  7. GitHub Release 自动升级（electron-updater，便携版/macOS 降级为打开下载页）
+ *  8. 退出时杀掉服务进程树
  */
 
-const { app, BrowserWindow, Menu, dialog, shell } = require('electron')
+const { app, BrowserWindow, Menu, dialog, shell, ipcMain } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const { spawn } = require('node:child_process')
 const path = require('node:path')
 const fs = require('node:fs')
 const net = require('node:net')
 const http = require('node:http')
+const settingsStore = require('./settings.cjs')
 
 const APP_ID = 'com.deepseek.dsh.desktop'
 const APP_NAME = 'DSH-Desktop'
@@ -75,6 +78,17 @@ function main() {
     : app.getAppPath()
   const dshBin = path.join(appBase, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
   const loadingPage = path.join(app.getAppPath(), 'src', 'loading.html')
+  const controlPage = path.join(app.getAppPath(), 'src', 'control.html')
+  const preloadPath = path.join(app.getAppPath(), 'src', 'preload.cjs')
+  const settingsPath = path.join(userData, 'settings.json')
+  let settings = settingsStore.load(settingsPath)
+  const isPortable = process.env.PORTABLE_EXECUTABLE_DIR !== undefined
+
+  // 内置上游 DSH 版本（打包树内 @deepseek-ai/dsh 的 package.json）
+  let dshVersion = 'unknown'
+  try {
+    dshVersion = JSON.parse(fs.readFileSync(path.join(appBase, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8')).version
+  } catch { /* 保持 unknown */ }
   if (!fs.existsSync(dshBin)) {
     dialog.showErrorBox('DSH-Desktop 启动失败', `找不到内置 DSH 运行时：\n${dshBin}`)
     app.quit()
@@ -153,8 +167,25 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
     })
   }
 
+  /** 固定端口预检：被占用时返回错误描述，空闲返回 null。 */
+  function probePort(port) {
+    return new Promise((resolve) => {
+      const srv = net.createServer()
+      srv.unref()
+      srv.on('error', (error) => {
+        resolve(error.code === 'EADDRINUSE' || error.code === 'EACCES'
+          ? `端口 ${port} 已被占用（可能其他 DSH 实例或其他程序正在使用）。请换一个端口，或改为 0（自动选择空闲端口）。`
+          : `端口 ${port} 不可用：${error.message}`)
+      })
+      srv.listen(port, '127.0.0.1', () => {
+        srv.close(() => resolve(null))
+      })
+    })
+  }
+
   async function startServer() {
-    const port = await getFreePort()
+    // 固定端口按设置；0 = 自动选择空闲端口（与原版 DSH / 其他实例天然不冲突）
+    const port = settings.web.port !== 0 ? settings.web.port : await getFreePort()
     const env = {}
     for (const [key, value] of Object.entries(process.env)) {
       // 不把外层 DSH 会话的环境变量漏进桌面版服务
@@ -231,6 +262,7 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
         nodeIntegration: false,
         sandbox: true,
         spellcheck: false,
+        preload: preloadPath,
       },
     })
     win.once('ready-to-show', () => win.show())
@@ -282,6 +314,24 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
         killTree()
         server = null
       }
+      settings = settingsStore.load(settingsPath)
+      if (!settings.web.enabled) {
+        // WebUI 关闭：不拉起服务，窗口停留设置页
+        logMain('--- web disabled, staying on control page ---')
+        if (win && !win.isDestroyed()) {
+          win.loadFile(controlPage)
+          if (win.isMinimized()) win.restore()
+          win.show()
+        }
+        return
+      }
+      if (settings.web.port !== 0) {
+        const busy = await probePort(settings.web.port)
+        if (busy !== null) {
+          showErrorInWindow(busy)
+          return
+        }
+      }
       logMain('--- boot start ---')
       if (win && !win.isDestroyed()) {
         win.loadFile(loadingPage)
@@ -319,10 +369,110 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
     }
   })
 
+  // ---------- 设置页 IPC ----------
+  let updateStatus = 'idle'
+  function updateNote() {
+    if (!app.isPackaged) return '开发模式下不可用（打包后可通过 GitHub Release 自动更新）'
+    if (isPortable) return '便携版不支持自动更新，检查到新版本后将引导到下载页。'
+    if (process.platform === 'darwin') return 'macOS 未签名版本不支持自动更新，检查到新版本后将引导到下载页。'
+    if (process.platform === 'linux' && !process.env.APPIMAGE) return 'deb 版本请通过系统包管理器更新。'
+    return '安装版支持自动下载更新（重启应用后生效）。'
+  }
+  function updateEnabled() {
+    return app.isPackaged && !isPortable && process.platform !== 'darwin'
+      && !(process.platform === 'linux' && !process.env.APPIMAGE)
+  }
+  function sendUpdateStatus(text) {
+    updateStatus = text
+    if (win && !win.isDestroyed()) win.webContents.send('dsh:update-status', text)
+  }
+
+  ipcMain.handle('dsh:get-state', () => ({
+    version: app.getVersion(),
+    dshVersion,
+    runtime: {
+      electron: process.versions.electron ?? '',
+      node: process.versions.node ?? '',
+      chrome: process.versions.chrome ?? '',
+    },
+    platform: process.platform,
+    arch: process.arch,
+    packaged: app.isPackaged,
+    portable: isPortable,
+    settings,
+    updateStatus,
+    updateEnabled: updateEnabled(),
+    updateNote: updateNote(),
+  }))
+  ipcMain.handle('dsh:save-settings', async (_event, next) => {
+    settings = settingsStore.save(settingsPath, next)
+    logMain(`settings saved: ${JSON.stringify(settings)}`)
+    if (settings.web.port !== 0) {
+      const busy = await probePort(settings.web.port)
+      if (busy !== null) return { error: busy }
+    }
+    return { ok: true }
+  })
+  ipcMain.handle('dsh:restart-web', () => {
+    runBoot()
+    return { ok: true }
+  })
+  ipcMain.handle('dsh:open-log', () => shell.openPath(logFile))
+  ipcMain.handle('dsh:open-data-dir', () => shell.openPath(userData))
+  async function checkForUpdates() {
+    if (!app.isPackaged) return '开发模式下不可用'
+    if (isPortable || process.platform === 'darwin' || (process.platform === 'linux' && !process.env.APPIMAGE)) {
+      shell.openExternal('https://github.com/wang48/dsh-desktop/releases')
+      return '已打开下载页'
+    }
+    try {
+      await autoUpdater.checkForUpdates()
+      return '检查已开始'
+    } catch (error) {
+      sendUpdateStatus(`检查失败：${error.message}`)
+      return `检查失败：${error.message}`
+    }
+  }
+  ipcMain.handle('dsh:check-updates', () => checkForUpdates())
+
+  // ---------- 自动升级（electron-updater） ----------
+  if (updateEnabled()) {
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('checking-for-update', () => sendUpdateStatus('正在检查更新…'))
+    autoUpdater.on('update-available', (info) => sendUpdateStatus(`发现新版本 v${info.version}，正在下载…`))
+    autoUpdater.on('update-not-available', () => sendUpdateStatus('已是最新版本'))
+    autoUpdater.on('download-progress', (progress) => sendUpdateStatus(`正在下载 ${Math.floor(progress.percent)}%`))
+    autoUpdater.on('update-downloaded', (info) => {
+      sendUpdateStatus(`新版本 v${info.version} 已下载，重启应用后生效`)
+      const options = {
+        type: 'info',
+        title: '更新已就绪',
+        message: `DSH-Desktop v${info.version} 已下载完成`,
+        detail: '立即重启安装，还是稍后退出时自动安装？',
+        buttons: ['立即重启', '稍后'],
+        defaultId: 0,
+        cancelId: 1,
+      }
+      const choice = win && !win.isDestroyed()
+        ? dialog.showMessageBoxSync(win, options)
+        : dialog.showMessageBoxSync(options)
+      if (choice === 0) {
+        quitting = true
+        autoUpdater.quitAndInstall()
+      }
+    })
+    autoUpdater.on('error', (error) => {
+      logMain(`updater error: ${error.message}`)
+      sendUpdateStatus(`更新失败：${error.message}`)
+    })
+  }
+
   const menu = Menu.buildFromTemplate([
     {
       label: '文件',
       submenu: [
+        { label: '设置', click: () => { if (win && !win.isDestroyed()) win.loadFile(controlPage) } },
         { label: '重试启动', click: () => runBoot() },
         { type: 'separator' },
         { label: '退出', role: 'quit' },
@@ -344,6 +494,7 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
     {
       label: '帮助',
       submenu: [
+        { label: '检查更新', click: () => { checkForUpdates() } },
         { label: '打开数据目录', click: () => shell.openPath(userData) },
         { label: '打开服务日志', click: () => shell.openPath(logFile) },
         {
@@ -351,8 +502,13 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
           click: () => dialog.showMessageBox({
             type: 'info',
             title: '关于',
-            message: APP_NAME,
-            detail: `桌面版 v${app.getVersion()}\n内置 @deepseek-ai/dsh\n数据目录：${userData}`,
+            message: `${APP_NAME} v${app.getVersion()}`,
+            detail: [
+              `内置 DeepSeek Harness：@deepseek-ai/dsh v${dshVersion}`,
+              `运行时：Electron ${process.versions.electron} · Node ${process.versions.node} · Chromium ${process.versions.chrome}`,
+              `平台：${process.platform} ${process.arch}${isPortable ? '（便携版）' : app.isPackaged ? '（打包版）' : '（开发模式）'}`,
+              `数据目录：${userData}`,
+            ].join('\n'),
           }),
         },
       ],
@@ -363,5 +519,11 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
   app.whenReady().then(() => {
     createWindow()
     runBoot()
+    // 启动后延迟静默检查更新（仅支持自动更新的形态）
+    if (updateEnabled()) {
+      setTimeout(() => {
+        if (!quitting) autoUpdater.checkForUpdates().catch((error) => logMain(`updater check failed: ${error.message}`))
+      }, 15_000).unref?.()
+    }
   })
 }

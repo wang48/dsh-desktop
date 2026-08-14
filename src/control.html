@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DSH-Desktop 设置</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #0b0f17; color: #c9d1d9;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    display: flex; justify-content: center; padding: 32px 16px; box-sizing: border-box;
+  }
+  .card {
+    width: 100%; max-width: 640px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 10px; padding: 26px 28px; height: fit-content;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; color: #e6edf3; }
+  .sub { font-size: 12px; color: #8b949e; margin: 0 0 20px; }
+  .section { margin: 18px 0 6px; padding-bottom: 14px; border-bottom: 1px solid #21262d; }
+  .section:last-child { border-bottom: none; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0; }
+  .row label { font-size: 14px; }
+  .hint { font-size: 12px; color: #8b949e; margin: 2px 0 0; line-height: 1.5; }
+  input[type="number"] {
+    width: 110px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    color: #e6edf3; padding: 7px 10px; font-size: 14px;
+  }
+  input[type="checkbox"] { width: 18px; height: 18px; accent-color: #4d7cfe; }
+  button {
+    background: #1f6feb; color: #fff; border: none; border-radius: 6px;
+    padding: 8px 18px; font-size: 14px; cursor: pointer;
+  }
+  button.secondary { background: #21262d; color: #c9d1d9; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  #status { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  #status.ok { color: #3fb950; }
+  #status.err { color: #f85149; }
+  #update-status { font-size: 13px; margin-top: 8px; min-height: 18px; color: #8b949e; }
+  .links { display: flex; gap: 14px; margin-top: 8px; }
+  .links a { color: #58a6ff; font-size: 13px; text-decoration: none; }
+  .note {
+    background: #1c2128; border-left: 3px solid #d29922; border-radius: 4px;
+    padding: 10px 12px; font-size: 12px; color: #c9d1d9; line-height: 1.6; margin-top: 8px;
+  }
+  code { background: #0d1117; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>DSH-Desktop 设置</h1>
+    <p class="sub" id="ver-line">加载中…</p>
+    <p class="sub">以下设置只影响桌面外壳，不改动 DSH 本体及其数据。</p>
+
+    <div class="section">
+      <div class="row">
+        <label for="web-enabled">启用 WebUI（内置 <code>dsh web</code> 服务）</label>
+        <input type="checkbox" id="web-enabled">
+      </div>
+      <p class="hint">关闭后应用不再启动本地服务，窗口只显示本设置页；再次启用即恢复。</p>
+    </div>
+
+    <div class="section">
+      <div class="row">
+        <label for="web-port">监听端口（127.0.0.1）</label>
+        <input type="number" id="web-port" min="0" max="65535" step="1">
+      </div>
+      <p class="hint">
+        <code>0</code> = 自动选择空闲端口（默认，推荐）。固定端口时请避开已占用的端口——
+        例如原版 DSH / 其他实例正在使用的 3080，保存时会自动检测并提示。
+      </p>
+    </div>
+
+    <div class="actions">
+      <button id="save-btn">保存并重启</button>
+      <button id="reload-btn" class="secondary">重新加载当前页</button>
+      <button id="log-btn" class="secondary">打开日志</button>
+      <button id="data-btn" class="secondary">打开数据目录</button>
+    </div>
+    <div id="status"></div>
+
+    <div class="section">
+      <div class="row">
+        <label>应用升级（版本 <span id="version">-</span>）</label>
+        <button id="update-btn" class="secondary">检查更新</button>
+      </div>
+      <div id="update-status"></div>
+      <p class="hint" id="update-hint"></p>
+    </div>
+
+    <div class="section">
+      <div class="note">
+        <b>关于局域网访问：</b>上游 DSH 出于安全原因明确拒绝把服务绑定到局域网
+        （<code>--host 0.0.0.0</code> 会报 "intentionally not supported yet for safety"，
+        因为它等于把可执行任意命令的 agent 暴露到网络）。桌面版遵守同一立场，不提供绕过。
+        需要远程访问时，请使用 SSH 隧道（认证加密，流量仍是回环）：<br>
+        <code>ssh -L 127.0.0.1:&lt;端口&gt;:127.0.0.1:&lt;端口&gt; 用户@主机</code><br>
+        配合上方"固定端口"即可稳定连接。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id)
+    const status = (text, ok) => {
+      const el = $('status')
+      el.textContent = text
+      el.className = ok === true ? 'ok' : ok === false ? 'err' : ''
+    }
+
+    async function loadState() {
+      try {
+        const state = await window.dshDesktop.getState()
+        $('web-enabled').checked = state.settings.web.enabled
+        $('web-port').value = state.settings.web.port
+        $('version').textContent = state.version
+        $('ver-line').textContent = [
+          `DSH-Desktop v${state.version}（桌面外壳）`,
+          `内置 DeepSeek Harness（@deepseek-ai/dsh）v${state.dshVersion}`,
+          `Electron ${state.runtime.electron} · Node ${state.runtime.node}`,
+          `平台：${state.platform} ${state.arch}${state.portable ? ' · 便携版' : state.packaged ? '' : ' · 开发模式'}`,
+        ].join(' · ')
+        $('update-hint').textContent = state.updateNote || ''
+        $('update-status').textContent = state.updateStatus === 'idle' ? '' : state.updateStatus
+        $('update-btn').disabled = !state.updateEnabled
+      } catch (error) {
+        status(`读取状态失败：${error.message}`, false)
+      }
+    }
+
+    $('save-btn').addEventListener('click', async () => {
+      const port = parseInt($('web-port').value, 10)
+      if (!Number.isInteger(port) || port < 0 || port > 65535) {
+        status('端口必须是 0–65535 的整数', false)
+        return
+      }
+      status('正在保存…')
+      try {
+        const result = await window.dshDesktop.saveSettings({
+          web: { enabled: $('web-enabled').checked, port },
+        })
+        if (result.error) {
+          status(result.error, false)
+          return
+        }
+        status('已保存，正在重启服务…', true)
+        await window.dshDesktop.restartWeb()
+      } catch (error) {
+        status(`保存失败：${error.message}`, false)
+      }
+    })
+
+    $('reload-btn').addEventListener('click', () => window.dshDesktop.restartWeb())
+    $('log-btn').addEventListener('click', () => window.dshDesktop.openLog())
+    $('data-btn').addEventListener('click', () => window.dshDesktop.openDataDir())
+
+    $('update-btn').addEventListener('click', async () => {
+      $('update-status').textContent = '正在检查…'
+      try {
+        const result = await window.dshDesktop.checkUpdates()
+        $('update-status').textContent = result || '已是最新'
+      } catch (error) {
+        $('update-status').textContent = `检查失败：${error.message}`
+      }
+    })
+
+    window.dshDesktop.onUpdateStatus((text) => { $('update-status').textContent = text })
+
+    loadState()
+  </script>
+</body>
+</html>

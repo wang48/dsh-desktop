@@ -53,6 +53,8 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.blockmap
+            dist/*.yml
+            dist/*.yaml
           if-no-files-found: error
 
   release:

@@ -27,19 +27,26 @@
 2. 打开 PowerShell，逐条执行（全部是复制，不碰原版）：
 
 ```powershell
+# PowerShell 原生语法（直接整段粘贴执行）
+$src = "$env:USERPROFILE\.dsh"                  # 官方原版数据目录（若设过 DSH_HOME 环境变量则改成它的值）
+$dst = "$env:APPDATA\DSH-Desktop\home"          # 桌面版数据目录
+New-Item -ItemType Directory -Force -Path $dst | Out-Null
+
 # 1) 对话数据（核心）
-xcopy "%USERPROFILE%\.dsh\sessions" "%APPDATA%\DSH-Desktop\home\sessions\" /E /I /Y
+New-Item -ItemType Directory -Force -Path "$dst\sessions" | Out-Null
+Copy-Item "$src\sessions\*" "$dst\sessions" -Recurse -Force
 
 # 2) 模型与界面设置
-copy "%USERPROFILE%\.dsh\settings.yaml" "%APPDATA%\DSH-Desktop\home\settings.yaml"
+Copy-Item "$src\settings.yaml" "$dst\settings.yaml" -Force
 
 # 3) 可选：API 凭据（文件含密钥，复制后桌面版即可直接用同一批 Key；
 #    不想复制就跳过，在桌面版设置里重新配置模型即可）
-copy "%USERPROFILE%\.dsh\.credentials.yaml" "%APPDATA%\DSH-Desktop\home\.credentials.yaml"
+Copy-Item "$src\.credentials.yaml" "$dst\.credentials.yaml" -Force
 
 # 4) 可选：匿名标识与 UI 状态
-copy "%USERPROFILE%\.dsh\.anonymous-user-id" "%APPDATA%\DSH-Desktop\home\.anonymous-user-id"
-xcopy "%USERPROFILE%\.dsh\storages" "%APPDATA%\DSH-Desktop\home\storages\" /E /I /Y
+Copy-Item "$src\.anonymous-user-id" "$dst\.anonymous-user-id" -Force
+New-Item -ItemType Directory -Force -Path "$dst\storages" | Out-Null
+Copy-Item "$src\storages\*" "$dst\storages" -Recurse -Force
 ```
 
 3. 启动桌面版。**历史会话**应出现在会话列表中；
@@ -66,7 +73,10 @@ cp -R "$HOME/.dsh/storages"       "$DST/"        # 可选
 桌面版数据也可以随时拷回原版（同样只复制）：
 
 ```powershell
-xcopy "%APPDATA%\DSH-Desktop\home\sessions" "%USERPROFILE%\.dsh\sessions\" /E /I /Y
+$src = "$env:APPDATA\DSH-Desktop\home"
+$dst = "$env:USERPROFILE\.dsh"
+New-Item -ItemType Directory -Force -Path "$dst\sessions" | Out-Null
+Copy-Item "$src\sessions\*" "$dst\sessions" -Recurse -Force
 ```
 
 ## 常见问题

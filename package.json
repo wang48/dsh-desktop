@@ -13,8 +13,8 @@
   "scripts": {
     "start": "electron .",
     "gen:icon": "node scripts/gen-icon.mjs",
-    "patch": "node scripts/patch-picker-worker.mjs",
-    "postinstall": "node scripts/patch-picker-worker.mjs",
+    "patch": "node scripts/patch-picker-worker.mjs && node scripts/patch-acl-runner-window.mjs",
+    "postinstall": "node scripts/patch-picker-worker.mjs && node scripts/patch-acl-runner-window.mjs",
     "dist": "electron-builder --win nsis portable --publish never --config.electronDist=node_modules/electron/dist"
   },
   "dependencies": {

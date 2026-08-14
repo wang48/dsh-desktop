@@ -28,6 +28,13 @@ const APP_NAME = 'DSH-Desktop'
 const READY_TIMEOUT_MS = 180_000
 const POLL_INTERVAL_MS = 400
 
+// 测试/开发时允许把 userData 重定向到任意目录（打包后的正常使用不需要）。
+// 必须在 requestSingleInstanceLock 之前执行：单实例锁基于 userData 路径，
+// 不提前重定向的话，测试实例会与已安装实例（默认 userData）抢同一把锁而退出。
+if (process.env.DSH_DESKTOP_USERDATA) {
+  app.setPath('userData', process.env.DSH_DESKTOP_USERDATA)
+}
+
 // 单实例锁：拿不到锁说明已有实例在跑（由已有实例把窗口带到前台，本进程退出）。
 // 失败时降级为继续运行——锁只是优化，不是功能必需。
 let gotLock = false
@@ -50,11 +57,6 @@ function escapeHtml(value) {
 
 function main() {
   app.setAppUserModelId(APP_ID)
-
-  // 测试/开发时允许把 userData 重定向到任意目录（打包后的正常使用不需要）
-  if (process.env.DSH_DESKTOP_USERDATA) {
-    app.setPath('userData', process.env.DSH_DESKTOP_USERDATA)
-  }
 
   const userData = app.getPath('userData')
   const dshHome = path.join(userData, 'home')
@@ -119,6 +121,34 @@ function main() {
   }
   logMain(`app start, packaged=${app.isPackaged}, dshHome=${dshHome}`)
   logMain(`dshBin=${dshBin}`)
+
+  // Windows：给主进程分配一个隐藏控制台。子进程默认继承父进程的控制台，
+  // 只要整棵进程树共享一个隐藏控制台，DSH spawn 的任何工具进程都不会新开
+  // 可见的 CMD 窗口——包括无法用 CREATE_NO_WINDOW 的 ACL 受限令牌 runner、
+  // 以及 pwsh 内部再 spawn 的命令（父进程无控制台时，每个控制台子程序都会
+  // 各自弹一个窗口，这正是"命令行窗口弹一下又消失"的根因）。
+  let hiddenConsole = false
+  if (process.platform === 'win32') {
+    try {
+      const koffi = require('koffi')
+      const kernel32 = koffi.load('kernel32.dll')
+      const user32 = koffi.load('user32.dll')
+      const GetConsoleWindow = kernel32.func('void * GetConsoleWindow()')
+      const AllocConsole = kernel32.func('int32 AllocConsole()')
+      const ShowWindow = user32.func('int32 ShowWindow(void * hwnd, int32 nCmdShow)')
+      if (GetConsoleWindow()) {
+        // 已有控制台（例如从终端启动的 dev 模式），子进程继承它即可
+        hiddenConsole = true
+      } else if (AllocConsole() !== 0) {
+        const hwnd = GetConsoleWindow()
+        if (hwnd) ShowWindow(hwnd, 0) // SW_HIDE
+        hiddenConsole = true
+        logMain('allocated hidden console for child processes')
+      }
+    } catch (error) {
+      logMain(`hidden console unavailable, fallback to CREATE_NO_WINDOW: ${error.message}`)
+    }
+  }
 
   let server = null
   let win = null
@@ -203,7 +233,9 @@ pre{background:#232324;border:1px solid rgba(255,255,255,0.06);border-radius:8px
       cwd: dshHome,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
+      // 有隐藏控制台时让子进程继承它（子进程的工具进程也一起继承，不再弹窗）；
+      // 没有控制台时退回 CREATE_NO_WINDOW（保持现状）。
+      windowsHide: !hiddenConsole,
     })
     logMain(`dsh child pid=${child.pid}`)
     child.stdout.on('data', writeLog)

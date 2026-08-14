@@ -1,8 +1,8 @@
 {
   "name": "dsh-desktop",
-  "productName": "DeepSeek Harness",
-  "version": "0.1.2",
-  "description": "DeepSeek Harness 桌面版：内置 DSH Web 服务的 Electron 外壳",
+  "productName": "DSH-Desktop",
+  "version": "0.1.3",
+  "description": "DSH-Desktop：DeepSeek Harness（@deepseek-ai/dsh）的桌面版外壳",
   "author": {
     "name": "wang48",
     "email": "wangyanpeng03@gmail.com"
@@ -42,7 +42,7 @@
   },
   "build": {
     "appId": "com.deepseek.dsh.desktop",
-    "productName": "DeepSeek Harness",
+    "productName": "DSH-Desktop",
     "directories": {
       "output": "dist"
     },
@@ -67,7 +67,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "DeepSeek Harness"
+      "shortcutName": "DSH-Desktop"
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"

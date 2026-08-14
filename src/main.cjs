@@ -21,7 +21,7 @@ const net = require('node:net')
 const http = require('node:http')
 
 const APP_ID = 'com.deepseek.dsh.desktop'
-const APP_NAME = 'DeepSeek Harness'
+const APP_NAME = 'DSH-Desktop'
 const READY_TIMEOUT_MS = 180_000
 const POLL_INTERVAL_MS = 400
 
@@ -56,6 +56,15 @@ function main() {
   const userData = app.getPath('userData')
   const dshHome = path.join(userData, 'home')
   const logFile = path.join(userData, 'server.log')
+
+  // 产品更名后的一次性数据迁移：DeepSeek Harness → DSH-Desktop（Windows）
+  if (process.platform === 'win32' && !fs.existsSync(userData)) {
+    try {
+      const legacyUserData = path.join(app.getPath('appData'), 'DeepSeek Harness')
+      if (fs.existsSync(legacyUserData)) fs.renameSync(legacyUserData, userData)
+    } catch { /* 迁移失败不影响启动 */ }
+  }
+
   fs.mkdirSync(dshHome, { recursive: true })
 
   // DSH 会在 $DSH_HOME/profiles/node_modules 里为每个包建 junction 指向安装处的
@@ -67,7 +76,7 @@ function main() {
   const dshBin = path.join(appBase, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
   const loadingPage = path.join(app.getAppPath(), 'src', 'loading.html')
   if (!fs.existsSync(dshBin)) {
-    dialog.showErrorBox('DeepSeek Harness 启动失败', `找不到内置 DSH 运行时：\n${dshBin}`)
+    dialog.showErrorBox('DSH-Desktop 启动失败', `找不到内置 DSH 运行时：\n${dshBin}`)
     app.quit()
     return
   }
@@ -112,7 +121,7 @@ h1{font-size:18px;color:#f85149;margin:0 0 14px}
 p{font-size:13px;color:#e6edf3;margin:0 0 10px}
 pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;font-size:12px;line-height:1.5;color:#8b949e;overflow:auto;max-height:46vh}
 .hint{font-size:12px;color:#8b949e;margin-top:12px}</style></head><body>
-<h1>DeepSeek Harness 启动失败</h1>
+<h1>DSH-Desktop 启动失败</h1>
 <p>${escapeHtml(message)}</p>
 <pre>${detail}</pre>
 <p class="hint">完整日志：${escapeHtml(logFile)}（菜单"帮助 → 打开服务日志"可直接查看；"文件 → 重试启动"可重新启动服务）</p>
@@ -127,7 +136,7 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
       win.show()
       win.loadURL(errorPage(message))
     } else {
-      dialog.showErrorBox('DeepSeek Harness 启动失败', `${message}\n\n完整日志：${logFile}`)
+      dialog.showErrorBox('DSH-Desktop 启动失败', `${message}\n\n完整日志：${logFile}`)
       app.quit()
     }
   }

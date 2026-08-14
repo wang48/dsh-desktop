@@ -1,0 +1,21 @@
+# dependencies / build output
+node_modules/
+dist/
+
+# local caches
+.npm-cache/
+.electron-cache/
+.eb-cache/
+.tmp/
+
+# runtime test dirs
+.desktop-userdata/
+.test-home/
+.bundled-home/
+.pkg-home/
+.pkg-home2/
+.verify-home/
+
+# logs & scratch
+*.log
+*.txt

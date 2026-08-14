@@ -312,18 +312,47 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
     }
   }
 
+  /**
+   * 停止当前服务并等待子进程真正退出（最长 3s）。
+   * 重启/改端口时必须等待，否则新实例探测端口时旧实例还占着端口，
+   * 造成"自己跟自己"的假端口冲突。
+   */
+  function stopServer() {
+    return new Promise((resolve) => {
+      const current = server
+      server = null
+      if (!current) { resolve(); return }
+      const { child } = current
+      if (child.exitCode !== null || child.killed) { resolve(); return }
+      const timer = setTimeout(() => {
+        try { child.kill('SIGKILL') } catch { /* already gone */ }
+        resolve()
+      }, 3000)
+      child.once('exit', () => {
+        clearTimeout(timer)
+        resolve()
+      })
+      if (process.platform === 'win32') {
+        try {
+          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+        } catch {
+          try { child.kill() } catch { /* already gone */ }
+        }
+      } else {
+        try { child.kill('SIGTERM') } catch { /* already gone */ }
+      }
+    })
+  }
+
   async function runBoot() {
     if (booting) return
     booting = true
     try {
-      if (server) {
-        killTree()
-        server = null
-      }
       settings = settingsStore.load(settingsPath)
       if (!settings.web.enabled) {
-        // WebUI 关闭：不拉起服务，窗口停留设置页
-        logMain('--- web disabled, staying on control page ---')
+        // WebUI 关闭：停掉服务，窗口停留设置页
+        logMain('--- web disabled, stopping server ---')
+        await stopServer()
         if (win && !win.isDestroyed()) {
           win.loadFile(controlPage)
           if (win.isMinimized()) win.restore()
@@ -331,6 +360,18 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
         }
         return
       }
+      // 目标端口与当前实例一致：复用现有实例，不重启、不产生第二个实例
+      if (server && server.child.exitCode === null && (settings.web.port === 0 || settings.web.port === server.port)) {
+        logMain(`server already running on target port ${server.port}, reusing`)
+        if (win && !win.isDestroyed()) {
+          win.loadURL(`${server.baseUrl}/`)
+          if (win.isMinimized()) win.restore()
+          win.show()
+        }
+        return
+      }
+      // 先真正停掉旧实例（等待退出），再探测/占用端口
+      await stopServer()
       if (settings.web.port !== 0) {
         const busy = await probePort(settings.web.port)
         if (busy !== null) {
@@ -413,7 +454,9 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
   ipcMain.handle('dsh:save-settings', async (_event, next) => {
     settings = settingsStore.save(settingsPath, next)
     logMain(`settings saved: ${JSON.stringify(settings)}`)
-    if (settings.web.port !== 0) {
+    // 正在运行实例的端口不算占用：同端口保存 = 复用现有实例，不重启
+    const currentPort = server && server.child.exitCode === null ? server.port : null
+    if (settings.web.port !== 0 && settings.web.port !== currentPort) {
       const busy = await probePort(settings.web.port)
       if (busy !== null) return { error: busy }
     }

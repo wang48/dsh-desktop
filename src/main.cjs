@@ -250,10 +250,17 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
     if (!server) return
     const { child } = server
     if (child.exitCode === null && !child.killed) {
-      try {
-        spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
-      } catch {
-        try { child.kill() } catch { /* already gone */ }
+      if (process.platform === 'win32') {
+        try {
+          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+        } catch {
+          try { child.kill() } catch { /* already gone */ }
+        }
+      } else {
+        try { child.kill('SIGTERM') } catch { /* already gone */ }
+        setTimeout(() => {
+          try { child.kill('SIGKILL') } catch { /* already gone */ }
+        }, 3000).unref?.()
       }
     }
   }

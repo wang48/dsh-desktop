@@ -1,11 +1,12 @@
-// 生成 build/icon.png —— 256x256 应用图标（渐变圆角方块 + 白色 "D"），纯 Node 实现，无第三方依赖
+// 生成 build/icon.png —— 512x512 应用图标（渐变圆角方块 + 白色 "D"），纯 Node 实现，无第三方依赖
 import { deflateSync } from 'node:zlib'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const SIZE = 256
-const RADIUS = 56
+const SIZE = 512
+const RADIUS = 112
+const S = SIZE / 256 // 256 基准设计坐标的缩放系数
 
 // ---------- PNG 基础设施 ----------
 const CRC_TABLE = (() => {
@@ -62,12 +63,14 @@ function roundedRectCoverage(x, y, size, r) {
   return Math.hypot(dx, dy) <= r ? 1 : 0
 }
 
-// "D" 字形覆盖度：左竖条 + 右侧半圆环
+// "D" 字形覆盖度：左竖条 + 右侧半圆环（坐标按 256 基准设计，乘以 S 缩放）
 function glyphDCoverage(x, y) {
+  const bx = x / S
+  const by = y / S
   let cover = 0
-  if (x >= 60 && x <= 94 && y >= 66 && y <= 190) cover = 1
-  if (x >= 106 && y >= 52 && y <= 204) {
-    const d = Math.hypot(x - 106, y - 128)
+  if (bx >= 60 && bx <= 94 && by >= 66 && by <= 190) cover = 1
+  if (bx >= 106 && by >= 52 && by <= 204) {
+    const d = Math.hypot(bx - 106, by - 128)
     if (d >= 44 && d <= 76) cover = Math.max(cover, 1)
   }
   return cover

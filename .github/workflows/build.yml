@@ -10,9 +10,22 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
-    name: Build Windows (nsis + portable)
-    runs-on: windows-latest
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            cmd: npx electron-builder --win nsis portable --publish never
+            artifact: DeepSeek-Harness-windows
+          - os: macos-latest
+            cmd: npx electron-builder --mac --publish never
+            artifact: DeepSeek-Harness-macos
+          - os: ubuntu-latest
+            cmd: npx electron-builder --linux --publish never
+            artifact: DeepSeek-Harness-linux
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,22 +38,37 @@ jobs:
         run: npm ci
 
       - name: Build installers
-        run: npx electron-builder --win nsis portable --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: ${{ matrix.cmd }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: DeepSeek-Harness-windows
+          name: ${{ matrix.artifact }}
           path: |
             dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
             dist/*.blockmap
           if-no-files-found: error
 
+  release:
+    name: Publish Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/*.exe
-            dist/*.blockmap
+          files: artifacts/*
           generate_release_notes: true

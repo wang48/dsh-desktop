@@ -9,22 +9,26 @@
 ## ✨ 特性
 
 - **开箱即用**：内置 Electron + 完整 DSH 依赖树（无需系统 Node）
+- **多端支持**：Windows（安装版/便携版）、macOS（dmg/zip，Intel + Apple Silicon）、Linux（AppImage/deb）
 - **立即可见**：启动即弹窗显示加载页，服务就绪后自动切换到应用界面
 - **错误可见**：启动失败时错误与最近日志直接显示在窗口内，可一键打开日志 / 重试
-- **数据隔离**：DSH_HOME 位于 `%APPDATA%\DeepSeek Harness\home`，不影响命令行版
+- **数据隔离**：DSH_HOME 位于用户数据目录下（`%APPDATA%\DeepSeek Harness\home` 或 macOS/Linux 对应目录），不影响命令行版
 - **单实例**：重复启动会把已有窗口带到前台
 - **自动端口**：启动时挑选空闲端口，服务只在 `127.0.0.1` 监听
 - **干净退出**：关闭窗口时杀掉服务进程树，不留后台进程
 
 ## 📦 下载安装
 
-### 免安装便携版（推荐试用）
+### Windows
 
-从 [Releases](../../releases) 下载 `DeepSeek Harness-<version>-portable.exe`，双击运行。
+- **免安装便携版**：从 [Releases](../../releases) 下载 `DeepSeek Harness-<version>-portable.exe`，双击运行。
+- **安装版**：下载 `DeepSeek Harness-Setup-<version>.exe`，安装向导支持自选目录与桌面快捷方式。
 
-### 安装版
+### macOS / Linux
 
-下载 `DeepSeek Harness-Setup-<version>.exe`，安装向导支持自选目录与桌面快捷方式。
+- macOS：`DeepSeek Harness-<version>-mac-<arch>.dmg`（Apple Silicon 选 arm64，Intel 选 x64）。
+  未签名，首次打开请在 Finder 中右键 →「打开」绕过 Gatekeeper。
+- Linux：`DeepSeek Harness-<version>-linux-<arch>.AppImage`（`chmod +x` 后运行）或 `.deb` 安装包。
 
 > ⚠️ 产物未做代码签名，Windows SmartScreen 可能提示"已保护你的电脑"，
 > 点 **更多信息 → 仍要运行** 即可。
@@ -54,14 +58,21 @@
 - **显式依赖清单**：`package.json` 中额外声明了 19 个 `@deepseek-ai/*` 包。
   它们只作为 peerDependencies 存在（npm 会自动安装），但 electron-builder 的依赖收集器
   只沿正式依赖边收集，会把纯 peer 包漏掉，导致打包产物缺包、启动报
-  `ERR_MODULE_NOT_FOUND`。显式声明后打包结果确定且完整（195/195）。
+  `ERR_MODULE_NOT_FOUND`。显式声明后打包结果确定且完整（195/195）；
+- **目录选择器补丁**（`scripts/patch-picker-worker.mjs`，postinstall 自动执行）：
+  koffi 的 `view()`/字符串 `decode()` 在 Electron 下会直接崩溃（V8 不支持外部内存
+  ArrayBuffer 视图），导致 Windows 原生文件夹选择器选完文件夹后进程崩溃。
+  补丁把 worker 的 `readUtf16` 改为 `lstrlenW` 量长 + `memcpy` 拷贝进 Node Buffer，
+  该路径已在 Electron 下验证可用。
 
 ## 🗂 数据与日志
 
 | 路径 | 说明 |
 |---|---|
-| `%APPDATA%\DeepSeek Harness\home\` | 应用私有 DSH_HOME（会话、配置、profile） |
-| `%APPDATA%\DeepSeek Harness\server.log` | 主进程 + DSH 服务日志（含 `[main ...]` 行） |
+| Windows：`%APPDATA%\DeepSeek Harness\home\` | 应用私有 DSH_HOME（会话、配置、profile） |
+| macOS：`~/Library/Application Support/DeepSeek Harness/home\` | 同上 |
+| Linux：`~/.config/DeepSeek Harness/home\` | 同上 |
+| `<数据目录>\server.log` | 主进程 + DSH 服务日志（含 `[main ...]` 行） |
 
 菜单「帮助」里可直接打开数据目录与日志；出错时窗口内的错误页也会给出日志路径。
 
@@ -96,7 +107,8 @@ electron 二进制、koffi 原生预编译等从 GitHub 下载，国内网络可
 - 本地 `npm run dist` 通过 `--config.electronDist=node_modules/electron/dist` 复用
   本地已解压的 electron（网络受限环境下很有用）；CI 不设此项，由 electron-builder
   自行下载 electron；
-- CI（GitHub Actions）会替你构建安装包：push 触发构建，打 `v*` tag 自动发布 Release。
+- CI（GitHub Actions）三平台矩阵构建（Windows/macOS/Linux）：push 触发构建，
+  打 `v*` tag 自动发布 Release（含全平台安装包）。
 
 ## ❓ 常见问题
 

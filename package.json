@@ -1,7 +1,7 @@
 {
   "name": "dsh-desktop",
   "productName": "DeepSeek Harness",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DeepSeek Harness 桌面版：内置 DSH Web 服务的 Electron 外壳",
   "author": "wang48",
   "private": true,
@@ -10,6 +10,8 @@
   "scripts": {
     "start": "electron .",
     "gen:icon": "node scripts/gen-icon.mjs",
+    "patch": "node scripts/patch-picker-worker.mjs",
+    "postinstall": "node scripts/patch-picker-worker.mjs",
     "dist": "electron-builder --win nsis portable --publish never --config.electronDist=node_modules/electron/dist"
   },
   "dependencies": {
@@ -32,7 +34,8 @@
     "@deepseek-ai/dsh-subagent-in-process-driver": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-subprocess": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-timeout": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-workflow": "^0.1.0-rc.6"
+    "@deepseek-ai/dsh-workflow": "^0.1.0-rc.6",
+    "koffi": "^3.1.5"
   },
   "build": {
     "appId": "com.deepseek.dsh.desktop",
@@ -65,6 +68,27 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    },
+    "linux": {
+      "category": "Development",
+      "icon": "build/icon.png",
+      "target": ["AppImage", "deb"],
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
     },
     "artifactName": "${productName}-Setup-${version}.${ext}"
   },

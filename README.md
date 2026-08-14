@@ -93,7 +93,9 @@ electron 二进制、koffi 原生预编译等从 GitHub 下载，国内网络可
 
 - `build.npmRebuild: false`：依赖均为纯 JS（koffi 无原生二进制也有降级路径，
   sharp 走 `@img/*` 预编译包），无需针对 Electron ABI 重编译；
-- `build.electronDist` 指向 `node_modules/electron/dist`，打包时不再重复下载 electron；
+- 本地 `npm run dist` 通过 `--config.electronDist=node_modules/electron/dist` 复用
+  本地已解压的 electron（网络受限环境下很有用）；CI 不设此项，由 electron-builder
+  自行下载 electron；
 - CI（GitHub Actions）会替你构建安装包：push 触发构建，打 `v*` tag 自动发布 Release。
 
 ## ❓ 常见问题

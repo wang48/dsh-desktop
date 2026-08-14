@@ -3,13 +3,14 @@
   "productName": "DeepSeek Harness",
   "version": "0.1.1",
   "description": "DeepSeek Harness 桌面版：内置 DSH Web 服务的 Electron 外壳",
+  "author": "wang48",
   "private": true,
   "main": "src/main.cjs",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
     "gen:icon": "node scripts/gen-icon.mjs",
-    "dist": "electron-builder --win nsis portable"
+    "dist": "electron-builder --win nsis portable --publish never --config.electronDist=node_modules/electron/dist"
   },
   "dependencies": {
     "@deepseek-ai/dsh": "^0.1.0-rc.6",
@@ -36,7 +37,6 @@
   "build": {
     "appId": "com.deepseek.dsh.desktop",
     "productName": "DeepSeek Harness",
-    "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "dist"
     },

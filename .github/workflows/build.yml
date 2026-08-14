@@ -25,7 +25,7 @@ jobs:
         run: npm ci
 
       - name: Build installers
-        run: npx electron-builder --win nsis portable
+        run: npx electron-builder --win nsis portable --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

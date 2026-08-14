@@ -284,6 +284,12 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
       }
     })
 
+    // 标题栏右键：弹出应用菜单（替代常驻菜单栏）
+    win.on('system-context-menu', (event) => {
+      event.preventDefault()
+      titleBarMenu.popup({ window: win })
+    })
+
     win.loadFile(loadingPage)
   }
 
@@ -468,6 +474,20 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
     })
   }
 
+  function showAbout() {
+    dialog.showMessageBox({
+      type: 'info',
+      title: '关于',
+      message: `${APP_NAME} v${app.getVersion()}`,
+      detail: [
+        `内置 DeepSeek Harness：@deepseek-ai/dsh v${dshVersion}`,
+        `运行时：Electron ${process.versions.electron} · Node ${process.versions.node} · Chromium ${process.versions.chrome}`,
+        `平台：${process.platform} ${process.arch}${isPortable ? '（便携版）' : app.isPackaged ? '（打包版）' : '（开发模式）'}`,
+        `数据目录：${userData}`,
+      ].join('\n'),
+    })
+  }
+
   const menu = Menu.buildFromTemplate([
     {
       label: '文件',
@@ -499,22 +519,27 @@ pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;f
         { label: '打开服务日志', click: () => shell.openPath(logFile) },
         {
           label: `关于 ${APP_NAME}`,
-          click: () => dialog.showMessageBox({
-            type: 'info',
-            title: '关于',
-            message: `${APP_NAME} v${app.getVersion()}`,
-            detail: [
-              `内置 DeepSeek Harness：@deepseek-ai/dsh v${dshVersion}`,
-              `运行时：Electron ${process.versions.electron} · Node ${process.versions.node} · Chromium ${process.versions.chrome}`,
-              `平台：${process.platform} ${process.arch}${isPortable ? '（便携版）' : app.isPackaged ? '（打包版）' : '（开发模式）'}`,
-              `数据目录：${userData}`,
-            ].join('\n'),
-          }),
+          click: () => showAbout(),
         },
       ],
     },
   ])
   Menu.setApplicationMenu(menu)
+
+  // 标题栏右键菜单：菜单栏不常驻，右键标题栏弹出应用入口 + 窗口控制
+  const titleBarMenu = Menu.buildFromTemplate([
+    { label: '设置', click: () => { if (win && !win.isDestroyed()) win.loadFile(controlPage) } },
+    { label: '重试启动', click: () => runBoot() },
+    { type: 'separator' },
+    { label: '检查更新', click: () => { checkForUpdates() } },
+    { label: '打开数据目录', click: () => shell.openPath(userData) },
+    { label: '打开服务日志', click: () => shell.openPath(logFile) },
+    { label: `关于 ${APP_NAME}`, click: () => showAbout() },
+    { type: 'separator' },
+    { label: '最小化', role: 'minimize' },
+    { label: '最大化', role: 'maximize' },
+    { label: '关闭', role: 'close' },
+  ])
 
   app.whenReady().then(() => {
     createWindow()

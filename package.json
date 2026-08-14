@@ -1,7 +1,7 @@
 {
   "name": "dsh-desktop",
   "productName": "DSH-Desktop",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "DSH-Desktop：DeepSeek Harness（@deepseek-ai/dsh）的桌面版外壳",
   "author": {
     "name": "wang48",
@@ -70,7 +70,7 @@
       "shortcutName": "DSH-Desktop"
     },
     "portable": {
-      "artifactName": "${productName}-${version}-portable.${ext}"
+      "artifactName": "${productName}-${version}-win-${arch}-portable.${ext}"
     },
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -93,7 +93,7 @@
       "target": ["AppImage", "deb"],
       "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
     },
-    "artifactName": "${productName}-Setup-${version}.${ext}"
+    "artifactName": "${productName}-${version}-win-${arch}-setup.${ext}"
   },
   "devDependencies": {
     "electron": "^43.4.0",

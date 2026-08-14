@@ -21,8 +21,8 @@
 
 ### Windows
 
-- **免安装便携版**：从 [Releases](../../releases) 下载 `DSH-Desktop-<version>-portable.exe`，双击运行。
-- **安装版**：下载 `DSH-Desktop-Setup-<version>.exe`，安装向导支持自选目录与桌面快捷方式。
+- **免安装便携版**：从 [Releases](../../releases) 下载 `DSH-Desktop-<version>-win-<arch>-portable.exe`，双击运行。
+- **安装版**：下载 `DSH-Desktop-<version>-win-<arch>-setup.exe`，安装向导支持自选目录与桌面快捷方式。
 
 ### macOS / Linux
 

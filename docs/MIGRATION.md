@@ -21,13 +21,39 @@
 重建整套链接；如果你在原版里改过 `profiles/<name>/cordis.patch.yml`，把该文件内容
 手动合并到桌面版对应位置即可。
 
-## Windows 迁移步骤
+## Windows 迁移步骤（推荐：一键脚本）
+
+仓库里提供了迁移脚本 `scripts/migrate-from-official.ps1`，
+会自动完成复制 + 工作区合并，可重复执行（全部是复制，不碰原版）。
 
 1. **退出桌面版**（右键标题栏 → 关闭），确保它没在写数据；
-2. 打开 PowerShell，逐条执行（全部是复制，不碰原版）：
+2. 打开 PowerShell，执行：
 
 ```powershell
-# PowerShell 原生语法（直接整段粘贴执行）
+# 默认路径：原版 %USERPROFILE%\.dsh → 桌面版 %APPDATA%\DSH-Desktop\home
+.\scripts\migrate-from-official.ps1
+
+# 不想复制 API 凭据（含密钥）就加 -SkipCredentials：
+.\scripts\migrate-from-official.ps1 -SkipCredentials
+
+# 若原版不是默认位置（比如设过 DSH_HOME），用 -Src 指定：
+.\scripts\migrate-from-official.ps1 -Src "D:\other\dsh-home"
+```
+
+脚本会复制 `sessions / settings.yaml / .credentials.yaml / .anonymous-user-id / storages`，
+并**合并 workspace.json**：按项目目录路径把原版工作区里的会话登记进桌面版对应工作区，
+这样历史会话会出现在正确的分组下（而不是"未分组"）。
+
+3. 启动桌面版。**历史会话**应出现在会话列表中；
+   注意会话按"项目目录"分组（如 `--D-Project-dsh-test--`），
+   桌面版里把工作区切到相同目录即可看到对应会话。
+
+## Windows 手动迁移（备选）
+
+不想用脚本时，也可以逐条执行（效果相同，但不合并工作区分组，
+会话可能显示为"未分组"）：
+
+```powershell
 $src = "$env:USERPROFILE\.dsh"                  # 官方原版数据目录（若设过 DSH_HOME 环境变量则改成它的值）
 $dst = "$env:APPDATA\DSH-Desktop\home"          # 桌面版数据目录
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
@@ -48,10 +74,6 @@ Copy-Item "$src\.anonymous-user-id" "$dst\.anonymous-user-id" -Force
 New-Item -ItemType Directory -Force -Path "$dst\storages" | Out-Null
 Copy-Item "$src\storages\*" "$dst\storages" -Recurse -Force
 ```
-
-3. 启动桌面版。**历史会话**应出现在会话列表中；
-   注意会话按"项目目录"分组（如 `--D-Project-dsh-test--`），
-   桌面版里把工作区切到相同目录即可看到对应会话。
 
 ## macOS / Linux 迁移步骤
 
@@ -83,5 +105,7 @@ Copy-Item "$src\sessions\*" "$dst\sessions" -Recurse -Force
 
 - **迁移后看不到历史会话**：确认会话目录在 `home\sessions\` 下、且桌面版窗口的
   工作区（项目目录）与原版会话所属目录一致；
+- **会话显示为"未分组"**：手动迁移不会合并工作区分组，用一键脚本
+  （`migrate-from-official.ps1`）再跑一遍即可自动合并；
 - **模型报错**：说明凭据没复制或模型配置不兼容，在桌面版的网页设置里重新选择/配置模型；
 - **原版还能用吗**：能。以上所有操作都是复制，原版 `~/.dsh` 不受任何影响。

@@ -3,7 +3,10 @@
   "productName": "DeepSeek Harness",
   "version": "0.1.2",
   "description": "DeepSeek Harness 桌面版：内置 DSH Web 服务的 Electron 外壳",
-  "author": "wang48",
+  "author": {
+    "name": "wang48",
+    "email": "wangyanpeng03@gmail.com"
+  },
   "private": true,
   "main": "src/main.cjs",
   "license": "MIT",

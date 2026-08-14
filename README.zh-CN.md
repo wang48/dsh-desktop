@@ -32,6 +32,10 @@
 
 - macOS：`DSH-Desktop-<version>-mac-<arch>.dmg`（Apple Silicon 选 arm64，Intel 选 x64）。
   未签名，首次打开请在 Finder 中右键 →「打开」绕过 Gatekeeper。
+  若提示**"已损坏，无法打开"**（macOS 15+ / Apple Silicon 常见），先清除隔离属性再试：
+  ```bash
+  xattr -cr "/Applications/DSH-Desktop.app"
+  ```
 - Linux：`DSH-Desktop-<version>-linux-<arch>.AppImage`（`chmod +x` 后运行）或 `.deb` 安装包。
 
 > ⚠️ 产物未做代码签名，Windows SmartScreen 可能提示"已保护你的电脑"，

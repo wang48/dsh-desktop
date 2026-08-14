@@ -33,6 +33,11 @@ A desktop application (**Windows / macOS / Linux**) that wraps
 
 - macOS: `DSH-Desktop-<version>-mac-<arch>.dmg` (arm64 for Apple Silicon, x64 for Intel).
   Unsigned — right-click → **Open** in Finder on first launch to bypass Gatekeeper.
+  If macOS reports *"is damaged and can't be opened"* (common on macOS 15+ / Apple Silicon),
+  clear the quarantine attribute first and try again:
+  ```bash
+  xattr -cr "/Applications/DSH-Desktop.app"
+  ```
 - Linux: `DSH-Desktop-<version>-linux-<arch>.AppImage` (`chmod +x` then run) or the `.deb` package.
 
 > ⚠️ Artifacts are not code-signed. Windows SmartScreen may show "Windows protected your PC" —

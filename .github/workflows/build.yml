@@ -40,7 +40,10 @@ jobs:
       - name: Build installers
         shell: bash
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # macOS needs auto-discovery ON so electron-builder searches the temp
+          # keychain (into which CSC_LINK's p12 is imported). With it OFF and no
+          # CSC_NAME, signing is skipped entirely (macCodeSign.findIdentity).
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.os != 'macos-latest' && 'false' || 'true' }}
           # Apple signing/notarization secrets only on macOS; empty elsewhere
           CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.CSC_KEY_PASSWORD || '' }}

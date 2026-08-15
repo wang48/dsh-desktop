@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * DSH-Desktop — DeepSeek Harness 桌面版 Electron 主进程
+ * DSH-Desktop - DeepSeek Harness 桌面版 Electron 主进程
  *
  * 职责：
  *  1. 单实例锁（失败时降级继续运行）

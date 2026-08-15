@@ -1,4 +1,4 @@
-// 生成 build/icon.png —— 512x512 应用图标（纯黑圆角方块 + 白色 "D"，Ollama 式黑白极简），
+// 生成 build/icon.png —— 512x512 应用图标（黑灰白单色：深灰圆角方块 + 灰色描边 + 白色 "D"，Ollama 式极简），
 // 纯 Node 实现，无第三方依赖
 import { deflateSync } from 'node:zlib'
 import { writeFileSync, mkdirSync } from 'node:fs'
@@ -77,31 +77,49 @@ function glyphDCoverage(x, y) {
   return cover
 }
 
+// 圆角描边环：在外轮廓之内、向内收缩 t 之后的内轮廓之外的区域
+function roundedRectRing(x, y, size, r, t) {
+  const outer = roundedRectCoverage(x, y, size, r)
+  const inner = roundedRectCoverage(x - t, y - t, size - 2 * t, r - t)
+  return Math.max(0, outer - inner)
+}
+
 // ---------- 逐像素绘制（2x2 超采样抗锯齿） ----------
 const rgba = Buffer.alloc(SIZE * SIZE * 4)
-const bg = [0, 0, 0] // 纯黑底（Ollama 风：黑白极简，无渐变）
+const RING_T = 2 * S // 描边宽度（256 基准 2 单位 → 512px 下 4px）
+const bg = [16, 16, 16] // 深灰底
+const ring = [64, 64, 64] // 灰色描边
 
 for (let py = 0; py < SIZE; py++) {
   for (let px = 0; px < SIZE; px++) {
     let bgCover = 0
     let glyphCover = 0
+    let ringCover = 0
     for (const oy of [0.25, 0.75]) {
       for (const ox of [0.25, 0.75]) {
         const x = px + ox
         const y = py + oy
         bgCover += roundedRectCoverage(x, y, SIZE, RADIUS)
         glyphCover += glyphDCoverage(x, y)
+        ringCover += roundedRectRing(x, y, SIZE, RADIUS, RING_T)
       }
     }
     bgCover /= 4
     glyphCover /= 4
+    ringCover /= 4
     if (bgCover <= 0) continue
 
-    // 背景：纯黑；前景：白色 D 与背景混合
+    // 深灰底 → 灰描边 → 白色 D 依次叠加
     const idx = (py * SIZE + px) * 4
-    rgba[idx] = Math.round(bg[0] + (255 - bg[0]) * glyphCover)
-    rgba[idx + 1] = Math.round(bg[1] + (255 - bg[1]) * glyphCover)
-    rgba[idx + 2] = Math.round(bg[2] + (255 - bg[2]) * glyphCover)
+    let r = bg[0] + (ring[0] - bg[0]) * ringCover
+    let g = bg[1] + (ring[1] - bg[1]) * ringCover
+    let b = bg[2] + (ring[2] - bg[2]) * ringCover
+    r += (255 - r) * glyphCover
+    g += (255 - g) * glyphCover
+    b += (255 - b) * glyphCover
+    rgba[idx] = Math.round(r)
+    rgba[idx + 1] = Math.round(g)
+    rgba[idx + 2] = Math.round(b)
     rgba[idx + 3] = Math.round(255 * bgCover)
   }
 }

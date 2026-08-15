@@ -2,36 +2,50 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>DSH-Desktop</title>
+<title>DSH Desktop</title>
 <style>
   html, body { height: 100%; margin: 0; }
   body {
-    background: #000000;
-    color: #fafafa;
+    /* 主进程启动前已把 prefers-color-scheme 对齐到 DSH 最终主题，首帧即正确 */
+    --bg: #000000;
+    --text: #fafafa;
+    --text-caption: #888888;
+    --spinner-track: rgba(255, 255, 255, 0.15);
+    --spinner-accent: #ffffff;
+    background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
       "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
     display: flex;
     align-items: center;
     justify-content: center;
   }
+  @media (prefers-color-scheme: light) {
+    body {
+      --bg: #ffffff;
+      --text: #1a1a1a;
+      --text-caption: #8a8a8a;
+      --spinner-track: rgba(0, 0, 0, 0.12);
+      --spinner-accent: #000000;
+    }
+  }
   .box { text-align: center; }
   .spinner {
     width: 36px; height: 36px;
     margin: 0 auto 22px;
-    border: 3px solid rgba(255, 255, 255, 0.15);
-    border-top-color: #ffffff;
+    border: 3px solid var(--spinner-track);
+    border-top-color: var(--spinner-accent);
     border-radius: 50%;
     animation: spin 0.9s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  h1 { font-size: 18px; font-weight: 600; margin: 0 0 10px; color: #fafafa; }
-  p { font-size: 13px; color: #888888; margin: 4px 0; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 10px; color: var(--text); }
+  p { font-size: 13px; color: var(--text-caption); margin: 4px 0; }
 </style>
 </head>
 <body>
   <div class="box">
     <div class="spinner"></div>
-    <h1>DSH-Desktop</h1>
+    <h1>DSH Desktop</h1>
     <p>正在启动本地服务…</p>
     <p>首次启动需要解压并初始化运行时，可能需要 1–3 分钟，请稍候。</p>
   </div>

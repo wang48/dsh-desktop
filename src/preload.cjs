@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('dshDesktop', {
   getState: () => ipcRenderer.invoke('dsh:get-state'),
   saveSettings: (settings) => ipcRenderer.invoke('dsh:save-settings', settings),
   restartWeb: () => ipcRenderer.invoke('dsh:restart-web'),
+  backToWeb: () => ipcRenderer.invoke('dsh:back-to-web'),
   checkUpdates: () => ipcRenderer.invoke('dsh:check-updates'),
   openLog: () => ipcRenderer.invoke('dsh:open-log'),
   openDataDir: () => ipcRenderer.invoke('dsh:open-data-dir'),

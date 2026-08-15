@@ -11,6 +11,9 @@ const DEFAULTS = Object.freeze({
     enabled: true, // WebUI 开关：false 时不拉起 dsh web 子进程
     port: 0,       // 0 = 自动选择空闲端口；正整数 = 固定监听端口（127.0.0.1）
   }),
+  updates: Object.freeze({
+    auto: true,    // 启动后自动检查更新；false 时仍可手动"检查更新"
+  }),
 })
 
 function normalize(input) {
@@ -20,7 +23,10 @@ function normalize(input) {
   if (typeof web.enabled === 'boolean') enabled = web.enabled
   let port = DEFAULTS.web.port
   if (Number.isInteger(web.port) && web.port >= 0 && web.port <= 65535) port = web.port
-  return { web: { enabled, port } }
+  const updates = raw.updates && typeof raw.updates === 'object' ? raw.updates : {}
+  let auto = DEFAULTS.updates.auto
+  if (typeof updates.auto === 'boolean') auto = updates.auto
+  return { web: { enabled, port }, updates: { auto } }
 }
 
 function load(file) {

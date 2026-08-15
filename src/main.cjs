@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * DSH-Desktop - DeepSeek Harness 桌面版 Electron 主进程
+ * DSH Desktop - DeepSeek Harness 桌面版 Electron 主进程
  *
  * 职责：
  *  1. 单实例锁（失败时降级继续运行）
@@ -14,7 +14,7 @@
  *  8. 退出时杀掉服务进程树
  */
 
-const { app, BrowserWindow, Menu, dialog, shell, ipcMain } = require('electron')
+const { app, BrowserWindow, Menu, dialog, shell, ipcMain, nativeTheme } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const { spawn } = require('node:child_process')
 const path = require('node:path')
@@ -24,7 +24,7 @@ const http = require('node:http')
 const settingsStore = require('./settings.cjs')
 
 const APP_ID = 'com.deepseek.dsh.desktop'
-const APP_NAME = 'DSH-Desktop'
+const APP_NAME = 'DSH Desktop'
 const READY_TIMEOUT_MS = 180_000
 const POLL_INTERVAL_MS = 400
 
@@ -92,7 +92,7 @@ function main() {
     dshVersion = JSON.parse(fs.readFileSync(path.join(appBase, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8')).version
   } catch { /* 保持 unknown */ }
   if (!fs.existsSync(dshBin)) {
-    dialog.showErrorBox('DSH-Desktop 启动失败', `找不到内置 DSH 运行时：\n${dshBin}`)
+    dialog.showErrorBox('DSH Desktop 启动失败', `找不到内置 DSH 运行时：\n${dshBin}`)
     app.quit()
     return
   }
@@ -164,8 +164,9 @@ html,body{height:100%;margin:0}body{background:#000000;color:#b3b3b3;font-family
 h1{font-size:16px;font-weight:600;color:#e05555;margin:0 0 14px}
 p{font-size:13px;color:#fafafa;margin:0 0 10px}
 pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:14px;font-size:12px;line-height:1.5;color:#b3b3b3;overflow:auto;max-height:46vh}
-.hint{font-size:12px;color:#888888;margin-top:12px}</style></head><body>
-<h1>DSH-Desktop 启动失败</h1>
+.hint{font-size:12px;color:#888888;margin-top:12px}
+@media (prefers-color-scheme:light){body{background:#ffffff;color:#555}p{color:#1a1a1a}pre{background:#f4f4f4;border-color:rgba(0,0,0,0.12);color:#555}h1{color:#c62828}.hint{color:#8a8a8a}}</style></head><body>
+<h1>DSH Desktop 启动失败</h1>
 <p>${escapeHtml(message)}</p>
 <pre>${detail}</pre>
 <p class="hint">完整日志：${escapeHtml(logFile)}（菜单"帮助 → 打开服务日志"可直接查看；"文件 → 重试启动"可重新启动服务）</p>
@@ -180,7 +181,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       win.show()
       win.loadURL(errorPage(message))
     } else {
-      dialog.showErrorBox('DSH-Desktop 启动失败', `${message}\n\n完整日志：${logFile}`)
+      dialog.showErrorBox('DSH Desktop 启动失败', `${message}\n\n完整日志：${logFile}`)
       app.quit()
     }
   }
@@ -279,6 +280,42 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     })
   }
 
+  /**
+   * 解析 DSH 最终生效的主题：读取 DSH 自己的 settings.yaml 里
+   * ui-theme.preference（dark/light/system），system 或读不到时跟随 OS。
+   * 与 DSH 客户端主题注册表的行为保持一致。
+   */
+  function resolveTheme() {
+    let preference = null
+    try {
+      const text = fs.readFileSync(path.join(dshHome, 'settings.yaml'), 'utf8')
+      const match = text.match(/ui-theme:\s*\n\s*preference:\s*['"]?(dark|light|system)['"]?/)
+      if (match) preference = match[1]
+    } catch { /* 读不到按 system 处理 */ }
+    if (preference !== 'dark' && preference !== 'light') {
+      preference = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+    }
+    return preference
+  }
+
+  /**
+   * 让渲染进程的 prefers-color-scheme 与 DSH 最终主题一致。
+   * DSH 的首帧主题由 prefers-color-scheme 解析（启动脚本先按 system 绘制，
+   * 之后才应用持久化偏好），从 themeSource 源头对齐后首帧即最终主题，
+   * 彻底消除启动/返回时的白闪（或深闪）。
+   */
+  function applyThemeSource() {
+    nativeTheme.themeSource = resolveTheme()
+  }
+
+  /**
+   * 与最终主题一致的页面底色（注入用，兜底覆盖 dom-ready 前已提交的亮色画布）。
+   * dark = DSH 深色主题 bg-base（neutral-bluish-950）；light = 白。
+   */
+  function resolveWebBaseColor() {
+    return resolveTheme() === 'dark' ? '#151517' : '#ffffff'
+  }
+
   function createWindow() {
     win = new BrowserWindow({
       width: 1440,
@@ -287,7 +324,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       minHeight: 620,
       show: false,
       autoHideMenuBar: true,
-      backgroundColor: '#000000',
+      backgroundColor: resolveTheme() === 'dark' ? '#000000' : '#ffffff',
       title: APP_NAME,
       webPreferences: {
         contextIsolation: true,
@@ -304,10 +341,20 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     })
 
     // 锁定窗口标题：无论加载哪个页面（加载页 / 设置页 / DSH WebUI），
-    // 标题始终显示 DSH-Desktop，避免上游页面标题（如旧版带的 "… — DeepSeek Harness"）覆盖。
+    // 标题始终显示 DSH Desktop，避免上游页面标题（如旧版带的 "… — DeepSeek Harness"）覆盖。
     win.on('page-title-updated', (event) => {
       event.preventDefault()
       if (win && !win.isDestroyed()) win.setTitle(APP_NAME)
+    })
+
+    // DSH WebUI 的首帧按"系统解析"的主题绘制（主题 JS 未跑前），再应用持久化
+    // 偏好，二者不一致时会出现白闪/深闪。themeSource 已在源头对齐最终主题；
+    // 此处再注入同色底色兜底覆盖已提交的默认画布。
+    win.webContents.on('dom-ready', () => {
+      try {
+        applyThemeSource()
+        win.webContents.insertCSS(`html, body { background-color: ${resolveWebBaseColor()} !important; }`)
+      } catch { /* 注入失败不影响使用 */ }
     })
 
     // 新窗口/外站链接一律交给系统默认浏览器
@@ -457,16 +504,21 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
 
   // ---------- 设置页 IPC ----------
   let updateStatus = 'idle'
+  /** 平台/形态是否支持自动更新（macOS 已签名公证，自 0.2.4 起纳入）。 */
+  function updaterSupported() {
+    return app.isPackaged && !isPortable
+      && !(process.platform === 'linux' && !process.env.APPIMAGE)
+  }
+  /** 自动更新是否生效：平台支持 + 用户开关。 */
+  function updateEnabled() {
+    return updaterSupported() && settings.updates.auto !== false
+  }
   function updateNote() {
     if (!app.isPackaged) return '开发模式下不可用（打包后可通过 GitHub Release 自动更新）'
     if (isPortable) return '便携版不支持自动更新，检查到新版本后将引导到下载页。'
-    if (process.platform === 'darwin') return 'macOS 未签名版本不支持自动更新，检查到新版本后将引导到下载页。'
     if (process.platform === 'linux' && !process.env.APPIMAGE) return 'deb 版本请通过系统包管理器更新。'
+    if (!settings.updates.auto) return '自动检查已关闭；仍可手动"检查更新"。'
     return '安装版支持自动下载更新（重启应用后生效）。'
-  }
-  function updateEnabled() {
-    return app.isPackaged && !isPortable && process.platform !== 'darwin'
-      && !(process.platform === 'linux' && !process.env.APPIMAGE)
   }
   function sendUpdateStatus(text) {
     updateStatus = text
@@ -485,8 +537,10 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     arch: process.arch,
     packaged: app.isPackaged,
     portable: isPortable,
+    theme: resolveTheme(),
     settings,
     updateStatus,
+    updateSupported: updaterSupported(),
     updateEnabled: updateEnabled(),
     updateNote: updateNote(),
   }))
@@ -505,13 +559,21 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     runBoot()
     return { ok: true }
   })
+  ipcMain.handle('dsh:back-to-web', () => {
+    if (server && server.child.exitCode === null) {
+      applyThemeSource()
+      if (win && !win.isDestroyed()) win.loadURL(`${server.baseUrl}/`)
+      return { ok: true }
+    }
+    return { error: 'WebUI 服务未运行。请先启用 WebUI 并点击"保存并重启"启动服务。' }
+  })
   ipcMain.handle('dsh:open-log', () => shell.openPath(logFile))
   ipcMain.handle('dsh:open-data-dir', () => shell.openPath(userData))
   async function checkForUpdates() {
     if (!app.isPackaged) return '开发模式下不可用'
-    if (isPortable || process.platform === 'darwin' || (process.platform === 'linux' && !process.env.APPIMAGE)) {
+    if (!updaterSupported()) {
       shell.openExternal('https://github.com/wang48/dsh-desktop/releases')
-      return '已打开下载页'
+      return '当前形态不支持自动更新，已打开下载页'
     }
     try {
       await autoUpdater.checkForUpdates()
@@ -524,7 +586,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
   ipcMain.handle('dsh:check-updates', () => checkForUpdates())
 
   // ---------- 自动升级（electron-updater） ----------
-  if (updateEnabled()) {
+  if (updaterSupported()) {
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.on('checking-for-update', () => sendUpdateStatus('正在检查更新…'))
@@ -536,7 +598,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       const options = {
         type: 'info',
         title: '更新已就绪',
-        message: `DSH-Desktop v${info.version} 已下载完成`,
+        message: `DSH Desktop v${info.version} 已下载完成`,
         detail: '立即重启安装，还是稍后退出时自动安装？',
         buttons: ['立即重启', '稍后'],
         defaultId: 0,
@@ -624,6 +686,8 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
   ])
 
   app.whenReady().then(() => {
+    // 先对齐 prefers-color-scheme，再创建窗口：加载页与 DSH 首帧即最终主题
+    applyThemeSource()
     createWindow()
     runBoot()
     // 启动后延迟静默检查更新（仅支持自动更新的形态）

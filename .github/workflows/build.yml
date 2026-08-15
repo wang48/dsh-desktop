@@ -1,8 +1,9 @@
 name: Build
 
 on:
+  # Build + publish only on version tags; everyday main pushes stay lightweight
+  # (no CI run). Use the manual "Run workflow" button to test-build on demand.
   push:
-    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 

@@ -160,11 +160,11 @@ function main() {
       ? lastLines.slice(-25).map(escapeHtml).join('\n')
       : '(暂无日志)'
     const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>启动失败</title><style>
-html,body{height:100%;margin:0}body{background:#151517;color:#adb2b8;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Helvetica,Arial,sans-serif;padding:40px}
-h1{font-size:16px;font-weight:500;color:#f25a5a;margin:0 0 14px}
-p{font-size:13px;color:#f9fafb;margin:0 0 10px}
-pre{background:#232324;border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:14px;font-size:12px;line-height:1.5;color:#adb2b8;overflow:auto;max-height:46vh}
-.hint{font-size:12px;color:#81858c;margin-top:12px}</style></head><body>
+html,body{height:100%;margin:0}body{background:#000000;color:#b3b3b3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Helvetica,Arial,sans-serif;padding:40px}
+h1{font-size:16px;font-weight:600;color:#e05555;margin:0 0 14px}
+p{font-size:13px;color:#fafafa;margin:0 0 10px}
+pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:14px;font-size:12px;line-height:1.5;color:#b3b3b3;overflow:auto;max-height:46vh}
+.hint{font-size:12px;color:#888888;margin-top:12px}</style></head><body>
 <h1>DSH-Desktop 启动失败</h1>
 <p>${escapeHtml(message)}</p>
 <pre>${detail}</pre>
@@ -287,7 +287,7 @@ pre{background:#232324;border:1px solid rgba(255,255,255,0.06);border-radius:8px
       minHeight: 620,
       show: false,
       autoHideMenuBar: true,
-      backgroundColor: '#0b0f17',
+      backgroundColor: '#000000',
       title: APP_NAME,
       webPreferences: {
         contextIsolation: true,

@@ -1,4 +1,4 @@
-# DSH-Desktop - DeepSeek Harness as a Desktop App
+# DSH-Desktop
 
 A desktop wrapper for [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
 (the npm package `@deepseek-ai/dsh`): an Electron shell bundles the complete DSH web
@@ -9,7 +9,7 @@ runtime, starts `dsh web` locally on launch, and loads the UI in a native window
 >
 > 中文文档：[README.zh-CN.md](README.zh-CN.md)。
 
-## ✨ Features
+## Features
 
 - **Zero setup**: bundles Electron + the full DSH dependency tree (no system Node needed)
 - **Cross-platform**: Windows (installer/portable), macOS (dmg/zip, Intel + Apple Silicon), Linux (AppImage/deb)
@@ -17,7 +17,7 @@ runtime, starts `dsh web` locally on launch, and loads the UI in a native window
 - **Desktop settings**: WebUI toggle, optional fixed port, rich About info, auto-update - all shell-level, no DSH patching
 - **Clean exit**: closing the window kills the server process tree - no leftover background processes
 
-## 📦 Installation
+## Install
 
 ### Windows
 
@@ -36,7 +36,7 @@ runtime, starts `dsh web` locally on launch, and loads the UI in a native window
 
 > ⚠️ Windows builds are not code-signed - SmartScreen may warn; choose **More info → Run anyway**.
 
-## 🗂 Data & migration
+## Data
 
 | Path | Description |
 |---|---|
@@ -50,7 +50,7 @@ both reachable via the title-bar right-click menu.
 Migrating conversations from the official DSH (copy-only, the original stays untouched):
 see [docs/MIGRATION.md](docs/MIGRATION.md) (Chinese).
 
-## 🛠 Development
+## Development
 
 Requires Node.js ≥ 20 (build time only; end users need nothing).
 
@@ -60,7 +60,7 @@ npm start      # run locally (electron .)
 npm run dist   # build Windows installer + portable exe -> dist/
 ```
 
-## ❓ FAQ
+## FAQ
 
 - **Stuck on the loading page**: the first launch initializes DSH, usually 1-3 minutes.
   Past that the window shows the error and logs - right-click the title bar → Retry startup.
@@ -69,7 +69,7 @@ npm run dist   # build Windows installer + portable exe -> dist/
 - **Something broke**: check the in-window error page or `server.log`; deleting the data
   directory (`%APPDATA%\DSH-Desktop` on Windows) resets the app state.
 
-## 📄 License
+## License
 
 [MIT](LICENSE). Built on [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
 (MIT); `@deepseek-ai/dsh` and its plugins are copyrighted by their respective authors.

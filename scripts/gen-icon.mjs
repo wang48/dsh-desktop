@@ -1,4 +1,5 @@
-// 生成 build/icon.png —— 512x512 应用图标（渐变圆角方块 + 白色 "D"），纯 Node 实现，无第三方依赖
+// 生成 build/icon.png —— 512x512 应用图标（纯黑圆角方块 + 白色 "D"，Ollama 式黑白极简），
+// 纯 Node 实现，无第三方依赖
 import { deflateSync } from 'node:zlib'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -78,8 +79,7 @@ function glyphDCoverage(x, y) {
 
 // ---------- 逐像素绘制（2x2 超采样抗锯齿） ----------
 const rgba = Buffer.alloc(SIZE * SIZE * 4)
-const top = [37, 99, 235]    // #2563eb
-const bottom = [7, 26, 77]   // #071a4d
+const bg = [0, 0, 0] // 纯黑底（Ollama 风：黑白极简，无渐变）
 
 for (let py = 0; py < SIZE; py++) {
   for (let px = 0; px < SIZE; px++) {
@@ -97,19 +97,11 @@ for (let py = 0; py < SIZE; py++) {
     glyphCover /= 4
     if (bgCover <= 0) continue
 
-    // 背景：垂直渐变 + 顶部轻微提亮
-    const t = py / SIZE
-    let r = top[0] + (bottom[0] - top[0]) * t
-    let g = top[1] + (bottom[1] - top[1]) * t
-    let b = top[2] + (bottom[2] - top[2]) * t
-    const highlight = Math.max(0, 1 - t * 1.6) * 26
-    r += highlight; g += highlight; b += highlight
-
-    // 前景白色 D 与背景混合
+    // 背景：纯黑；前景：白色 D 与背景混合
     const idx = (py * SIZE + px) * 4
-    rgba[idx] = Math.round(r + (255 - r) * glyphCover)
-    rgba[idx + 1] = Math.round(g + (255 - g) * glyphCover)
-    rgba[idx + 2] = Math.round(b + (255 - b) * glyphCover)
+    rgba[idx] = Math.round(bg[0] + (255 - bg[0]) * glyphCover)
+    rgba[idx + 1] = Math.round(bg[1] + (255 - bg[1]) * glyphCover)
+    rgba[idx + 2] = Math.round(bg[2] + (255 - bg[2]) * glyphCover)
     rgba[idx + 3] = Math.round(255 * bgCover)
   }
 }

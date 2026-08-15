@@ -303,6 +303,13 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       shutdown()
     })
 
+    // 锁定窗口标题：无论加载哪个页面（加载页 / 设置页 / DSH WebUI），
+    // 标题始终显示 DSH-Desktop，避免上游页面标题（如旧版带的 "… — DeepSeek Harness"）覆盖。
+    win.on('page-title-updated', (event) => {
+      event.preventDefault()
+      if (win && !win.isDestroyed()) win.setTitle(APP_NAME)
+    })
+
     // 新窗口/外站链接一律交给系统默认浏览器
     win.webContents.setWindowOpenHandler(({ url }) => {
       if (/^https?:/i.test(url)) shell.openExternal(url)

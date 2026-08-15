@@ -7,10 +7,10 @@
   .\scripts\migrate-from-official.ps1 -SkipCredentials   # 不复制 API 凭据
   .\scripts\migrate-from-official.ps1 -Src "D:\other\dsh-home"
 
-说明：
-  - 复制 sessions / settings.yaml / .credentials.yaml / .anonymous-user-id / storages；
-  - 合并 workspace.json：按路径把原版工作区里的会话登记进桌面版对应工作区，
-    会话才会显示在正确分组下（而不是"未分组"）；
+安全设计：
+  - 覆盖桌面版任何已有文件之前，先备份到 <Dst>\_migration-backup\<时间戳>\；
+  - 会话分组文件 workspace.json 只做"按路径合并会话登记"，绝不整体覆盖；
+  - session_projcache.json 是缓存，迁移后删除让应用重建；
   - 不复制 profiles（其 node_modules 是指向原版安装位置的链接，桌面版会自动重建）。
 #>
 param(
@@ -27,6 +27,18 @@ if (-not (Test-Path $Src)) {
 }
 if (-not (Test-Path $Dst)) { New-Item -ItemType Directory -Force -Path $Dst | Out-Null }
 
+# 备份会被覆盖的目标文件
+$backupDir = Join-Path $Dst ("_migration-backup\" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$backupCandidates = @('settings.yaml', '.credentials.yaml', '.anonymous-user-id', 'storages\workspace.json', 'storages\session_projcache.json')
+foreach ($rel in $backupCandidates) {
+  $p = Join-Path $Dst $rel
+  if (Test-Path $p) {
+    New-Item -ItemType Directory -Force -Path (Split-Path (Join-Path $backupDir $rel)) | Out-Null
+    Copy-Item $p (Join-Path $backupDir $rel) -Force
+  }
+}
+Write-Host "已备份桌面版现有文件到：$backupDir"
+
 function Copy-Contents([string]$From, [string]$To) {
   if (-not (Test-Path $From)) { Write-Host "  跳过（不存在）：$From"; return }
   New-Item -ItemType Directory -Force -Path $To | Out-Null
@@ -41,10 +53,7 @@ if (Test-Path "$Src\settings.yaml") { Copy-Item "$Src\settings.yaml" "$Dst\setti
 if (-not $SkipCredentials -and (Test-Path "$Src\.credentials.yaml")) { Copy-Item "$Src\.credentials.yaml" "$Dst\.credentials.yaml" -Force }
 if (Test-Path "$Src\.anonymous-user-id") { Copy-Item "$Src\.anonymous-user-id" "$Dst\.anonymous-user-id" -Force }
 
-Write-Host "== 3/4 复制 UI 状态 =="
-Copy-Contents "$Src\storages" "$Dst\storages"
-
-Write-Host "== 4/4 合并工作区与会话分组 =="
+Write-Host "== 3/4 合并工作区与会话分组（绝不整体覆盖）=="
 function Merge-WorkspaceJson([string]$FromFile, [string]$ToFile) {
   if (-not (Test-Path $FromFile)) { Write-Host "  跳过（原版无 workspace.json）"; return }
   $from = Get-Content $FromFile -Raw | ConvertFrom-Json
@@ -58,11 +67,9 @@ function Merge-WorkspaceJson([string]$FromFile, [string]$ToFile) {
     }
   }
 
-  # 合并归档会话
   $arch = @{}
   foreach ($id in (@($to.global.archivedSessionIds) + @($from.global.archivedSessionIds)) | Where-Object { $_ }) { $arch[$id] = $true }
 
-  # 按 path 匹配工作区，合并会话登记
   foreach ($wsProp in $from.tables.workspaces.PSObject.Properties) {
     $ws = $wsProp.Value
     $path = [string]$ws.path
@@ -89,7 +96,17 @@ function Merge-WorkspaceJson([string]$FromFile, [string]$ToFile) {
 
 Merge-WorkspaceJson "$Src\storages\workspace.json" "$Dst\storages\workspace.json"
 
+Write-Host "== 4/4 复制其余 UI 状态（排除登记文件）=="
+if (Test-Path "$Src\storages") {
+  New-Item -ItemType Directory -Force -Path "$Dst\storages" | Out-Null
+  Copy-Item "$Src\storages\*" "$Dst\storages" -Recurse -Force -Exclude 'workspace.json', 'session_projcache.json'
+}
+
+# 投影缓存让应用按磁盘会话重建
+$cache = Join-Path $Dst 'storages\session_projcache.json'
+if (Test-Path $cache) { Remove-Item $cache -Force }
+
 Write-Host ""
 Write-Host "迁移完成。启动 DSH-Desktop 后，历史会话应出现在对应工作区分组下。"
-Write-Host "原版数据未做任何改动。"
+Write-Host "原版数据未做任何改动；桌面版被覆盖的旧文件备份在：$backupDir"
 

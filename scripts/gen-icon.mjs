@@ -64,14 +64,16 @@ function roundedRectCoverage(x, y, size, r) {
   return Math.hypot(dx, dy) <= r ? 1 : 0
 }
 
-// "D" 字形覆盖度：左竖条 + 右侧半圆环（坐标按 256 基准设计，乘以 S 缩放）
+// "D" 字形覆盖度：左竖条 + 右侧半圆环（坐标按 256 基准设计，乘以 S 缩放）。
+// 几何：竖条 71–105，圆环圆心 (117,128)（外半径 76、内半径 44、右半侧），
+// 组合质心落在 256 瓦片中心 x=128 上，视觉居中。
 function glyphDCoverage(x, y) {
   const bx = x / S
   const by = y / S
   let cover = 0
-  if (bx >= 60 && bx <= 94 && by >= 66 && by <= 190) cover = 1
-  if (bx >= 106 && by >= 52 && by <= 204) {
-    const d = Math.hypot(bx - 106, by - 128)
+  if (bx >= 71 && bx <= 105 && by >= 66 && by <= 190) cover = 1
+  if (bx >= 117 && by >= 52 && by <= 204) {
+    const d = Math.hypot(bx - 117, by - 128)
     if (d >= 44 && d <= 76) cover = Math.max(cover, 1)
   }
   return cover

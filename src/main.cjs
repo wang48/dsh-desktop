@@ -317,6 +317,9 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
   }
 
   function createWindow() {
+    // 打包版图标已内嵌进 exe，无需指定；dev 模式指定 PNG 便于预览图标效果
+    // （否则窗口/任务栏显示 electron.exe 的通用图标，看不到 build/icon.png）
+    const devIcon = app.isPackaged ? undefined : path.join(app.getAppPath(), 'build', 'icon.png')
     win = new BrowserWindow({
       width: 1440,
       height: 900,
@@ -326,6 +329,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       autoHideMenuBar: true,
       backgroundColor: resolveTheme() === 'dark' ? '#000000' : '#ffffff',
       title: APP_NAME,
+      icon: devIcon,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,

@@ -155,10 +155,6 @@ function main() {
   let win = null
   let quitting = false
   let booting = false
-  // 桌面窗口 WebUI 当前打开的会话：localStorage 按 origin 隔离，远程设备
-  // 的浏览器读不到，由主进程轮询读取后附到局域网链接（?session=<id>）上，
-  // 配合 patch-lan-session.mjs 的查询参数兜底实现跨设备续接同一会话。
-  let currentSessionId = null
 
   function errorPage(message) {
     const detail = lastLines.length > 0
@@ -386,7 +382,6 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       try {
         applyThemeSource()
         win.webContents.insertCSS(`html, body { background-color: ${resolveWebBaseColor()} !important; }`)
-        pollCurrentSession()
       } catch { /* 注入失败不影响使用 */ }
     })
 
@@ -410,23 +405,6 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     })
 
     win.loadFile(loadingPage)
-  }
-
-  /** 轮询桌面窗口 WebUI 的"当前会话"（dsh.sessions.current），供局域网链接续接。 */
-  function pollCurrentSession() {
-    if (!win || win.isDestroyed()) return
-    const url = win.webContents.getURL()
-    if (!/^http:\/\/127\.0\.0\.1:\d+/.test(url)) return
-    win.webContents.executeJavaScript(
-      `(() => {
-        try {
-          const value = JSON.parse(localStorage.getItem('dsh.sessions.current') || '{}')
-          return typeof value.sessionId === 'string' && value.sessionId !== '' ? value.sessionId : null
-        } catch { return null }
-      })()`,
-    ).then((id) => {
-      if (typeof id === 'string' && id !== '') currentSessionId = id
-    }).catch(() => { /* 页面切换期间读取失败属正常 */ })
   }
 
   function killTree() {
@@ -579,9 +557,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
   }
 
   ipcMain.handle('dsh:get-state', () => {
-    // 0.0.0.0 监听且服务在跑时，把本机 LAN IPv4 地址与访问 URL 一起返回给设置页；
-    // URL 附带 ?session=<当前会话>，远程设备打开后直接进入桌面端正在使用的同一会话
-    const sessionQuery = currentSessionId ? `?session=${encodeURIComponent(currentSessionId)}` : ''
+    // 0.0.0.0 监听且服务在跑时，把本机 LAN IPv4 访问链接返回给设置页。
     // 只枚举物理网卡：按接口名黑名单过滤虚拟适配器（VMware/VirtualBox/WSL/
     // Hyper-V/Docker/VPN/隧道等）。名字来自 OS 接口枚举（networkInterfaces 的
     // 键），跨平台可用，与地址无关，因此不会误伤物理网卡。
@@ -591,7 +567,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
           if (VIRTUAL_IFACE.test(name)) return []
           return (list || [])
             .filter((iface) => iface && iface.family === 'IPv4' && !iface.internal)
-            .map((iface) => ({ url: `http://${iface.address}:${server.port}/${sessionQuery}` }))
+            .map((iface) => ({ url: `http://${iface.address}:${server.port}/` }))
         })
       : []
     return {
@@ -786,8 +762,6 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     applyThemeSource()
     createWindow()
     runBoot()
-    // 周期刷新桌面窗口的"当前会话"（局域网链接续接用，读取开销极小）
-    setInterval(pollCurrentSession, 2000).unref?.()
     // 启动后延迟静默检查更新（仅支持自动更新的形态）
     if (updateEnabled()) {
       setTimeout(() => {

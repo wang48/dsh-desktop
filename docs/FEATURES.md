@@ -93,13 +93,12 @@ it would expose remote code execution to the network; use 127.0.0.1 instead
   隧道等虚拟适配器），并显示醒目的风险警告（0.0.0.0 等于把可执行任意命令的
   agent 开放给整个局域网，仅在可信网络使用）；SSH 隧道说明保留，作为远程访问
   的推荐方案；
-- 会话续接（跨设备打开同一会话）：主进程轮询桌面窗口的
-  `localStorage['dsh.sessions.current']`（2s 间隔），把当前会话 ID 附到局域网链接
-  （`?session=<id>`）；postinstall 补丁 `scripts/patch-lan-session.mjs` 在
-  `dsh-client-runtime/lib/client.js` 的 SessionManager 构造处加查询参数兜底
-  （localStorage 无记录时才生效），远程设备打开链接即直接进入桌面端正在使用的
-  同一会话。浏览器按 origin 隔离 localStorage 是标准行为，跨设备续接只能走
-  "链接携带 + 客户端兜底"这条路；
+- 远程会话落点：链接不带任何参数，LAN 设备打开后由上游前端的初始选择逻辑
+  自动打开**最近更新的会话**（localStorage 按 origin 隔离，新 origin 无
+  "当前会话"记录时默认落最新会话）。曾评估过"链接携带 ?session + 客户端
+  查询参数兜底"的精确续接方案（主进程轮询桌面窗口当前会话），实测发现普通
+  场景与上游默认行为等价（桌面端通常就停在最新会话），按用户决策移除以减少
+  上游补丁面；
 - 非安全上下文 polyfill：`crypto.randomUUID` 只在安全上下文（https/localhost）
   可用，`http://<局域网IP>` 下为 undefined——模型目录、Agent 预设等设置页路径
   用它生成 RPC/消息 id，LAN 打开时报 "crypto.randomUUID is not a function"。

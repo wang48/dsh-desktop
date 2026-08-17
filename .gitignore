@@ -8,6 +8,9 @@ dist/
 .eb-cache/
 .tmp/
 
+# test scratch
+tests/.tmp*
+
 # runtime test dirs
 .desktop-userdata/
 .test-home/

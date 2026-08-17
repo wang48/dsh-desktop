@@ -632,37 +632,56 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     })
   }
 
+  // 菜单属于操作系统界面，标签跟随系统语言：中文系统用中文，其余用英文
+  // （例如英文 macOS 的菜单栏应显示 Paste ⌘V，而不是「粘贴」）
+  const uiZh = String((app.getPreferredSystemLanguages() || [])[0] || app.getLocale() || '').toLowerCase().startsWith('zh')
+  const L = (zh, en) => (uiZh ? zh : en)
+
   const menu = Menu.buildFromTemplate([
     {
-      label: '文件',
+      label: L('文件', 'File'),
       submenu: [
-        { label: '设置', click: () => { if (win && !win.isDestroyed()) win.loadFile(controlPage) } },
-        { label: '重试启动', click: () => runBoot() },
+        { label: L('设置', 'Settings'), click: () => { if (win && !win.isDestroyed()) win.loadFile(controlPage) } },
+        { label: L('重试启动', 'Retry Startup'), click: () => runBoot() },
         { type: 'separator' },
-        { label: '退出', role: 'quit' },
+        { label: L('退出', 'Quit'), role: 'quit' },
       ],
     },
     {
-      label: '视图',
+      label: L('编辑', 'Edit'),
+      // macOS 的 Cmd+C/V/X/A/Z 通过应用菜单的 role 分发，缺少编辑菜单时
+      // 页面里完全无法复制粘贴（Windows/Linux 由 Chromium 原生处理，不受影响）。
       submenu: [
-        { label: '重新加载', role: 'reload' },
-        { label: '开发者工具', role: 'toggleDevTools' },
+        { label: L('撤销', 'Undo'), role: 'undo' },
+        { label: L('重做', 'Redo'), role: 'redo' },
         { type: 'separator' },
-        { label: '重置缩放', role: 'resetZoom' },
-        { label: '放大', role: 'zoomIn' },
-        { label: '缩小', role: 'zoomOut' },
-        { type: 'separator' },
-        { label: '全屏', role: 'togglefullscreen' },
+        { label: L('剪切', 'Cut'), role: 'cut' },
+        { label: L('复制', 'Copy'), role: 'copy' },
+        { label: L('粘贴', 'Paste'), role: 'paste' },
+        { label: L('全选', 'Select All'), role: 'selectAll' },
       ],
     },
     {
-      label: '帮助',
+      label: L('视图', 'View'),
       submenu: [
-        { label: '检查更新', click: () => { checkForUpdates() } },
-        { label: '打开数据目录', click: () => shell.openPath(userData) },
-        { label: '打开服务日志', click: () => shell.openPath(logFile) },
+        { label: L('重新加载', 'Reload'), role: 'reload' },
+        { label: L('开发者工具', 'Developer Tools'), role: 'toggleDevTools' },
+        { type: 'separator' },
+        { label: L('重置缩放', 'Reset Zoom'), role: 'resetZoom' },
+        { label: L('放大', 'Zoom In'), role: 'zoomIn' },
+        { label: L('缩小', 'Zoom Out'), role: 'zoomOut' },
+        { type: 'separator' },
+        { label: L('全屏', 'Toggle Full Screen'), role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: L('帮助', 'Help'),
+      submenu: [
+        { label: L('检查更新', 'Check for Updates'), click: () => { checkForUpdates() } },
+        { label: L('打开数据目录', 'Open Data Directory'), click: () => shell.openPath(userData) },
+        { label: L('打开服务日志', 'Open Server Log'), click: () => shell.openPath(logFile) },
         {
-          label: `关于 ${APP_NAME}`,
+          label: `${L('关于', 'About')} ${APP_NAME}`,
           click: () => showAbout(),
         },
       ],
@@ -672,17 +691,23 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
 
   // 标题栏右键菜单：菜单栏不常驻，右键标题栏弹出应用入口 + 窗口控制
   const titleBarMenu = Menu.buildFromTemplate([
-    { label: '设置', click: () => { if (win && !win.isDestroyed()) win.loadFile(controlPage) } },
-    { label: '重试启动', click: () => runBoot() },
+    { label: L('设置', 'Settings'), click: () => { if (win && !win.isDestroyed()) win.loadFile(controlPage) } },
+    { label: L('重试启动', 'Retry Startup'), click: () => runBoot() },
     { type: 'separator' },
-    { label: '检查更新', click: () => { checkForUpdates() } },
-    { label: '打开数据目录', click: () => shell.openPath(userData) },
-    { label: '打开服务日志', click: () => shell.openPath(logFile) },
-    { label: `关于 ${APP_NAME}`, click: () => showAbout() },
+    // 编辑动作：macOS 走顶部菜单栏的「编辑」，Windows/Linux 从标题栏右键菜单可达
+    { label: L('剪切', 'Cut'), role: 'cut' },
+    { label: L('复制', 'Copy'), role: 'copy' },
+    { label: L('粘贴', 'Paste'), role: 'paste' },
+    { label: L('全选', 'Select All'), role: 'selectAll' },
     { type: 'separator' },
-    { label: '最小化', role: 'minimize' },
-    { label: '最大化', role: 'maximize' },
-    { label: '关闭', role: 'close' },
+    { label: L('检查更新', 'Check for Updates'), click: () => { checkForUpdates() } },
+    { label: L('打开数据目录', 'Open Data Directory'), click: () => shell.openPath(userData) },
+    { label: L('打开服务日志', 'Open Server Log'), click: () => shell.openPath(logFile) },
+    { label: `${L('关于', 'About')} ${APP_NAME}`, click: () => showAbout() },
+    { type: 'separator' },
+    { label: L('最小化', 'Minimize'), role: 'minimize' },
+    { label: L('最大化', 'Maximize'), role: 'maximize' },
+    { label: L('关闭', 'Close'), role: 'close' },
   ])
 
   app.whenReady().then(() => {

@@ -94,7 +94,28 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*
-          generate_release_notes: true
+          body: |
+            ## DSH Desktop v0.2.6
+
+            基于 DeepSeek Harness（@deepseek-ai/dsh 0.1.0-rc.7）的桌面外壳。
+
+            ### 新功能
+            - **局域网访问**：设置页新增「开放局域网访问」开关（默认开启），通过上游官方 `--patch` 机制绑定 `0.0.0.0`；设置页只列出物理网卡的 IPv4 访问链接（可点击、在默认浏览器打开），远程设备打开后默认进入最近会话
+            - **主题同步**：外壳设置页/加载页/错误页与 DSH Web 主题完全一致，消除启动与返回时的白闪
+            - **macOS 粘贴修复**：新增「编辑」菜单（撤销/复制/粘贴/全选等标准 role），Cmd+V 恢复；菜单标签跟随系统语言（英文系统显示 Paste ⌘V）
+            - **新图标**：黑白灰三阶单色（深灰底 + 灰描边 + 白色 D），D 字形居中；开发模式窗口图标预览
+            - **显示名**：DSH-Desktop → DSH Desktop（窗口标题、页面、弹窗）
+
+            ### 改进
+            - 设置页 Ollama 式精简：去掉冗余说明；「返回」有未保存修改时先确认
+            - 非安全上下文 `crypto.randomUUID` polyfill：局域网 http 下模型/Agent 预设等设置页可用
+            - 端口探测加固：Windows SO_REUSEADDR 共存检测，避免"两个实例瓜分同端口"
+            - 上游升级 0.1.0-rc.6 → 0.1.0-rc.7（推理档位新增 low、Safari 输入框修复等）
+            - 新增测试套件：设置存储单测、补丁回归（幂等/锚点）、LAN 启动集成测试
+
+            ### 安全说明
+            - 0.0.0.0 监听时，局域网内任何设备都能控制本机 agent（可执行本机命令），仅建议在可信网络使用；公网访问请使用 SSH 隧道
+            - LAN 端可驱动 agent、读写会话，但 `settings.*` / `credentials.*` 等特权方法仍由上游钉在回环（模型设置页提示 403 为预期边界）
           # -rc / -beta 标签标记为 prerelease：不进 Latest，稳定版的
           # electron-updater（allowPrerelease=false）也不会把它们推给用户
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}

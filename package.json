@@ -1,7 +1,7 @@
 {
   "name": "dsh-desktop",
   "productName": "DSH-Desktop",
-  "version": "0.2.6-rc.4",
+  "version": "0.2.6",
   "description": "DSH-Desktop：DeepSeek Harness（@deepseek-ai/dsh）的桌面版外壳",
   "author": {
     "name": "wang48",

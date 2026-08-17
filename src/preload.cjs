@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('dshDesktop', {
   checkUpdates: () => ipcRenderer.invoke('dsh:check-updates'),
   openLog: () => ipcRenderer.invoke('dsh:open-log'),
   openDataDir: () => ipcRenderer.invoke('dsh:open-data-dir'),
+  showTitleBarMenu: () => ipcRenderer.send('dsh:titlebar-menu'),
   onUpdateStatus: (callback) => {
     const listener = (_event, status) => callback(status)
     ipcRenderer.on('dsh:update-status', listener)

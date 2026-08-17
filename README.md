@@ -16,6 +16,9 @@ runtime, starts `dsh web` locally on launch, and loads the UI in a native window
 - **Isolated data**: DSH_HOME lives under the user-data directory and never touches the CLI install; single-instance
 - **Desktop settings**: WebUI toggle, optional fixed port, rich About info, auto-update - all shell-level, no DSH patching
 - **Clean exit**: closing the window kills the server process tree - no leftover background processes
+- **Integrated macOS title bar**: on macOS the native title-bar strip is removed and the traffic-light
+  buttons float over the app's own surface (sidebar/header background); the top strip stays draggable
+  (double-click to zoom, right-click for the app menu). Windows/Linux keep the system title bar.
 
 ## Install
 

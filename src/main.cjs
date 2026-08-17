@@ -340,10 +340,73 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     return resolveTheme() === 'dark' ? '#151517' : '#ffffff'
   }
 
+  // ---------- macOS 一体式标题栏 ----------
+  // hiddenInset 后窗口不再有独立标题栏条，红绿灯悬浮在页面内容上。做法：
+  //  1. 顶部保留一条与系统标题栏同高的透明拖拽条（-webkit-app-region: drag），
+  //     可拖动窗口 / 双击缩放 / 右键弹应用菜单，背景透出各列自身颜色，视觉上
+  //     与页面完全一体（红绿灯直接浮在侧栏深色背景上）。
+  //  2. 各页面顶部内容整体下移，避免交互元素被红绿灯或拖拽条挡住。
+  // 仅 darwin 注入；Windows/Linux 保持系统标题栏不变。
+  //
+  // 尺寸说明：红绿灯（trafficLightPosition y:12，12px 高）占 y≈12-24，拖拽条取
+  // 系统标准标题栏高度 28px；侧栏内容只需比拖拽条低一点点（+2px），红绿灯下方
+  // 留白因此只有约 6px，不会显得空。
+  const MAC_DRAG_STRIP_H = 28
+
+  /** 当前加载的页面类型，决定标题栏注入用哪套让位规则。 */
+  function currentPageKind() {
+    const url = win.webContents.getURL()
+    if (url.includes('control.html')) return 'control'
+    if (/^https?:\/\/(127\.0\.0\.1|localhost):/.test(url)) return 'webui'
+    return 'loading'
+  }
+
+  function injectMacTitleBar() {
+    if (process.platform !== 'darwin' || !win || win.isDestroyed()) return
+    const kind = currentPageKind()
+    // DSH WebUI：三列布局（侧栏 | 对话 | 详情）顶部内容整体下移，让出红绿灯与
+    // 拖拽条区域。选择器基于 DSH 的 slot 出口（data-slot 是应用源码级稳定名，
+    // 不随 CSS-module 哈希变化），子元素用 [class*="_xxx"] 后缀包含匹配，
+    // 兼容根元素带多个状态类（如 hHd-Xa_root hHd-Xa_railIn）的情况。
+    const css = kind === 'webui' ? `
+      [data-slot="sidebar"] > [class*="_root"] {
+        padding-top: ${MAC_DRAG_STRIP_H + 2}px !important;
+        box-sizing: border-box !important;
+      }
+      [data-slot="conversation.session.header"] > [class*="_header"] {
+        padding-top: ${MAC_DRAG_STRIP_H}px !important;
+        box-sizing: border-box !important;
+      }
+      [data-slot="details"] > * {
+        padding-top: ${MAC_DRAG_STRIP_H}px !important;
+        box-sizing: border-box !important;
+      }
+    ` : kind === 'control' ? `
+      body { padding-top: ${MAC_DRAG_STRIP_H + 12}px !important; }
+    ` : ''
+    if (css) win.webContents.insertCSS(css).catch(() => {})
+    win.webContents.executeJavaScript(`
+      (() => {
+        if (document.getElementById('dsh-drag-strip')) return
+        const strip = document.createElement('div')
+        strip.id = 'dsh-drag-strip'
+        strip.style.cssText = 'position:fixed;top:0;left:0;right:0;height:${MAC_DRAG_STRIP_H}px;z-index:2147483646;-webkit-app-region:drag'
+        strip.addEventListener('contextmenu', (event) => {
+          event.preventDefault()
+          try { if (window.dshDesktop && window.dshDesktop.showTitleBarMenu) window.dshDesktop.showTitleBarMenu() } catch {}
+        })
+        document.documentElement.appendChild(strip)
+      })()
+    `).catch(() => {})
+  }
+
   function createWindow() {
     // 打包版图标已内嵌进 exe，无需指定；dev 模式指定 PNG 便于预览图标效果
     // （否则窗口/任务栏显示 electron.exe 的通用图标，看不到 build/icon.png）
     const devIcon = app.isPackaged ? undefined : path.join(app.getAppPath(), 'build', 'icon.png')
+    // macOS：一体式标题栏（红绿灯悬浮在页面内容上，与页面融为一体，无独立标题栏条）。
+    // Windows/Linux 保持系统标题栏（菜单已由 autoHideMenuBar 隐藏）。
+    const isMac = process.platform === 'darwin'
     win = new BrowserWindow({
       width: 1440,
       height: 900,
@@ -354,6 +417,8 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       backgroundColor: resolveTheme() === 'dark' ? '#000000' : '#ffffff',
       title: APP_NAME,
       icon: devIcon,
+      titleBarStyle: isMac ? 'hiddenInset' : undefined,
+      trafficLightPosition: isMac ? { x: 12, y: 12 } : undefined,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -382,6 +447,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       try {
         applyThemeSource()
         win.webContents.insertCSS(`html, body { background-color: ${resolveWebBaseColor()} !important; }`)
+        injectMacTitleBar()
       } catch { /* 注入失败不影响使用 */ }
     })
 
@@ -398,7 +464,9 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       }
     })
 
-    // 标题栏右键：弹出应用菜单（替代常驻菜单栏）
+    // 系统标题栏右键（Windows/Linux 常驻标题栏、macOS 无标题栏时此事件不触发）：
+    // 弹出应用菜单（替代常驻菜单栏）。macOS 的拖拽条右键走下面的
+    // dsh:titlebar-menu IPC（injectMacTitleBar 里注入的脚本触发）。
     win.on('system-context-menu', (event) => {
       event.preventDefault()
       titleBarMenu.popup({ window: win })
@@ -756,6 +824,11 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     { label: L('最大化', 'Maximize'), role: 'maximize' },
     { label: L('关闭', 'Close'), role: 'close' },
   ])
+
+  // macOS 一体式标题栏：拖拽条右键弹出同一份菜单（注入的拖拽条脚本经 preload 发送）
+  ipcMain.on('dsh:titlebar-menu', () => {
+    if (win && !win.isDestroyed()) titleBarMenu.popup({ window: win })
+  })
 
   app.whenReady().then(() => {
     // 先对齐 prefers-color-scheme，再创建窗口：加载页与 DSH 首帧即最终主题

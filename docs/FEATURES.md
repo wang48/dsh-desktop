@@ -9,9 +9,9 @@
 | 功能 | 可行性 | 兼容方式 |
 |---|---|---|
 | ① 应用升级 | ✅ 可行 | 纯外壳（electron-updater + GitHub Release），DSH 零感知 |
-| ② WebUI 开关 | ✅ 可行 | 纯外壳（设置决定是否拉起 `dsh web` 子进程） |
+| ② WebUI 开关 | ⛔ 已从 UI 移除 | 后端逻辑保留（`web.enabled` 默认 true，恒启动服务） |
 | ③a 固定端口（127.0.0.1） | ✅ 可行 | 官方参数 `--host 127.0.0.1 --port <n>` |
-| ③b 开放端口（局域网 0.0.0.0） | ⛔ 上游硬性拒绝 | 见下，**不建议绕过**；推荐 SSH 隧道方案 |
+| ③b 开放端口（局域网 0.0.0.0） | ✅ 已实现 | 官方 `--patch` 覆盖层（见下）；设置页可切换监听地址并附醒目风险提示 |
 
 ## ① 应用升级（Auto-update）
 
@@ -43,31 +43,12 @@
 - 完全不触碰 DSH：升级的是外壳 + 内置运行时整体，DSH 子进程与 DSH_HOME 数据不受影响；
 - 升级后 DSH 依赖树随应用一起更新（版本锁定 `0.1.0-rc.6`），行为与对应 Release 完全一致。
 
-## ② WebUI 开关
+## ② WebUI 开关（已从设置页移除）
 
-### 语义
-
-设置项 `web.enabled`（默认 `true`）：
-
-- `true`：现状——拉起 `dsh web`，窗口加载 WebUI；
-- `false`：**不拉起** `dsh web` 子进程；窗口显示本地控制页
-  （`src/control.html` + preload IPC），提供「启用 WebUI」按钮与说明。
-
-用途：只把桌面版当"外壳管理器"的机器（例如先配置再启用）、排查问题时停服、
-或未来接入"只跑 headless agent"模式。
-
-### 实现要点（纯外壳）
-
-1. `userData/settings.json`（原子写）：`{ "web": { "enabled": true, "host": "127.0.0.1", "port": 0 } }`；
-2. `runBoot()` 开头读设置：`enabled === false` → 直接 `win.loadFile(control.html)`，跳过 spawn；
-3. 控制页通过 preload（`contextBridge` 暴露 `getSettings/setSettings/restart`）读写设置并触发
-   `runBoot()` 重启子进程——复用现有重启路径（菜单「文件 → 重试启动」同款）；
-4. 菜单增加「设置」入口（打开控制页）。
-
-### 兼容性
-
-- `enabled=true` 时 spawn 命令与现在逐字节一致；
-- 设置文件是外壳自有文件（`userData/settings.json`），不写入 DSH_HOME、不改 profile、不加 patch。
+> 用户反馈该开关"意义不大"，设置页已移除；`settings.cjs` 的 `web.enabled` 字段与
+> `runBoot()` 的停服分支**后端逻辑保留**（默认 `true`，恒启动服务）。设置页通过
+> preload（`contextBridge` 暴露 `getState/saveSettings/restart`）读写设置并触发
+> `runBoot()` 重启子进程；「返回」在有未保存修改时会弹确认，避免忘记「保存并重启」。
 
 ## ③ 开放端口
 
@@ -77,7 +58,7 @@
 - 设置项 `web.port`：`0` = 自动（默认，现状行为），正整数 = 固定端口（占用时启动失败并显示错误页）；
 - 用途：让本机其他工具（浏览器扩展、MCP 客户端、脚本）稳定连接桌面版 API。
 
-### ③b 局域网开放（0.0.0.0，⛔ 上游硬性拒绝）
+### ③b 局域网开放（0.0.0.0，✅ 已实现，官方机制）
 
 **实测 + 源码确认**（`@deepseek-ai/dsh-web-app/lib/startup.js:39`）：
 
@@ -86,23 +67,59 @@ error: --host 0.0.0.0 is intentionally not supported yet for safety:
 it would expose remote code execution to the network; use 127.0.0.1 instead
 ```
 
-- 这是**参数解析层的硬拒绝**（`program.error`），无环境变量开关；
-- 错误信息明确：暴露到网络 = 暴露远程代码执行（agent 工具可执行任意命令），
-  上游将此视为安全问题而非未实现能力（"not supported **yet**"，未来可能提供带鉴权的形态）；
-- webserver 层的 `host` schema 只接受 `127.0.0.1 | 0.0.0.0`，
-  LAN 信任机制（`trustedHosts = [...lanAddresses, ...extra]` 与 `--trusted-host` 围栏）已就绪，
-  是上游为将来的安全开放形态预留的。
+- 拒绝只发生在 **CLI 参数解析层**（`program.error`，硬拒绝 `--host 0.0.0.0`）；
+- 但 webserver 层的 `host` schema 本来就接受 `127.0.0.1 | 0.0.0.0` 两个值，
+  且 `dsh-web-app` 在绑定 0.0.0.0 时会自动收集本机 LAN IPv4 加入
+  /api 浏览器信任围栏（防 DNS rebinding，`trustedHosts = [...lanAddresses, ...extra]`），
+  启动日志并打印 `(LAN: http://<ip>:<port>)`——官方代码库为配置级开放预留了完整配套；
+- **官方开放的路径是 `--patch` 覆盖层**（launcher 自带参数，非 hack）：
+  `dsh web --patch <file>` 可用 patch 把 webserver 行的 host 覆盖为 `0.0.0.0`。
+  已实测：dump-config 显示覆盖生效，实际启动成功并打印 LAN 地址；
+- 注意 `--patch` 必须放在应用参数（`--port`/`--host`）**之前**：
+  commander 的 `passThroughOptions` 会把首个未知选项之后的内容全部透传给 web 应用，
+  应用侧不认识 `--patch`（报 `error: unknown option '--patch'`）；
+- settings.yaml 用户层改不动 webserver 的 host（其行配置是
+  `!!js ctx.webStartup.host ?? '127.0.0.1'` 表达式，不引用用户配置）。
 
-### 兼容方案（不绕开上游安全门禁）
+### 实现（设置项 `web.host`）
 
-| 方案 | 说明 | 推荐度 |
-|---|---|---|
-| **SSH 隧道** | 固定端口（③a）+ `ssh -L 127.0.0.1:<p>:127.0.0.1:<p> user@host`，经认证隧道访问，流量仍是回环。DSH 自身的 `dsh-ssh` 插件/`ssh_tunnel` 工具就是这个模式 | ⭐ 推荐 |
-| 反向代理（外壳内） | 外壳自建 `0.0.0.0` 监听并转发到回环端口。技术上可行，但**绕开了上游明确的安全拒绝**（把 RCE 面暴露到网络），违反"完全兼容原版"的约束，仅可作为显式 opt-in + 醒目警告的后续讨论项 | ⚠️ 不建议 |
-| 等上游支持 | 上游措辞为 "not supported yet"，待其提供带鉴权的开放形态后，外壳透传其官方参数即可 | ⏳ 长期 |
+- 默认 `0.0.0.0`（用户决策）；上游 schema 只接受 `0.0.0.0 | 127.0.0.1` 两个
+  字面量，设置页以「开放局域网访问」开关切换（Ollama 式精简 UI，无输入框）；
+- `host = 0.0.0.0` 时外壳写入 `userData/lan.patch.yml` 并以 `--patch` 传入
+  （patch 内容：webserver 行 host 覆盖 + 保留 `!!js ctx.webStartup.port ?? 3080` 端口表达式）；
+  `host = 127.0.0.1` 时沿用官方参数 `--host 127.0.0.1`；
+- 设置页在 0.0.0.0 监听且服务运行时列出当前 LAN 访问链接（主进程枚举网卡，
+  只留物理网卡：按接口名黑名单过滤 VMware/VirtualBox/WSL/Hyper-V/Docker/VPN/
+  隧道等虚拟适配器），并显示醒目的风险警告（0.0.0.0 等于把可执行任意命令的
+  agent 开放给整个局域网，仅在可信网络使用）；SSH 隧道说明保留，作为远程访问
+  的推荐方案；
+- 会话续接（跨设备打开同一会话）：主进程轮询桌面窗口的
+  `localStorage['dsh.sessions.current']`（2s 间隔），把当前会话 ID 附到局域网链接
+  （`?session=<id>`）；postinstall 补丁 `scripts/patch-lan-session.mjs` 在
+  `dsh-client-runtime/lib/client.js` 的 SessionManager 构造处加查询参数兜底
+  （localStorage 无记录时才生效），远程设备打开链接即直接进入桌面端正在使用的
+  同一会话。浏览器按 origin 隔离 localStorage 是标准行为，跨设备续接只能走
+  "链接携带 + 客户端兜底"这条路；
+- 非安全上下文 polyfill：`crypto.randomUUID` 只在安全上下文（https/localhost）
+  可用，`http://<局域网IP>` 下为 undefined——模型目录、Agent 预设等设置页路径
+  用它生成 RPC/消息 id，LAN 打开时报 "crypto.randomUUID is not a function"。
+  postinstall 补丁 `scripts/patch-secure-context.mjs` 在 `dsh-client-modules`
+  （host 侧）注入 `__DSH_BOOT__` 的首个脚本后追加一个 UUID v4 polyfill
+  （用所有上下文都有的 `crypto.getRandomValues`），对任何 origin、任何设备
+  生效，不改动任何浏览器 bundle。
+- 已知边界（上游设计，桌面版不解除）：`settings.*` / `credentials.*` /
+  `llm.discoverModels` / `host.openPath` 属于 PRIVILEGED_METHODS，被上游用
+  空信任列表**钉死在回环**——即使绑定 0.0.0.0，LAN 设备访问模型设置页也会
+  得到 `/api/settings.describe → HTTP 403`（"加载提供方目录失败"）。这是
+  上游防凭据泄露的边界：LAN 端可以驱动 agent、读写会话，但不能查看/修改
+  设置与凭据。
 
-**结论**：桌面版应实现 ③a（固定端口），把"开放端口/局域网"场景导向 SSH 隧道方案；
-在设置 UI 中写明原因并附上游错误原文，不提供绕过入口。
+### 安全立场
+
+- 不修改上游代码、不绕过其 CLI 门禁——用的正是上游为开放形态预留的官方 `--patch` 机制
+  （社区插件如 `@xiaosenho/dsh-plugin-remote-access` 走同一条路，另加了认证与 frpc 隧道）；
+- 浏览器信任围栏由上游自动生效；无内置认证——非可信网络的用户应改用 SSH 隧道或
+  带认证的社区插件。
 
 ## 落地计划（待确认后实施）
 

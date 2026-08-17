@@ -21,6 +21,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const net = require('node:net')
 const http = require('node:http')
+const os = require('node:os')
 const settingsStore = require('./settings.cjs')
 
 const APP_ID = 'com.deepseek.dsh.desktop'
@@ -154,6 +155,10 @@ function main() {
   let win = null
   let quitting = false
   let booting = false
+  // 桌面窗口 WebUI 当前打开的会话：localStorage 按 origin 隔离，远程设备
+  // 的浏览器读不到，由主进程轮询读取后附到局域网链接（?session=<id>）上，
+  // 配合 patch-lan-session.mjs 的查询参数兜底实现跨设备续接同一会话。
+  let currentSessionId = null
 
   function errorPage(message) {
     const detail = lastLines.length > 0
@@ -191,7 +196,9 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       const srv = net.createServer()
       srv.unref()
       srv.on('error', reject)
-      srv.listen(0, '127.0.0.1', () => {
+      // exclusive: Windows 下设置 SO_EXCLUSIVEADDRUSE，禁掉 SO_REUSEADDR 的
+      // 端口共存怪癖，保证探测到的端口真的没有任何进程占用
+      srv.listen({ port: 0, host: '127.0.0.1', exclusive: true }, () => {
         const { port } = srv.address()
         srv.close(() => resolve(port))
       })
@@ -208,11 +215,19 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
           ? `端口 ${port} 已被占用（可能其他 DSH 实例或其他程序正在使用）。请换一个端口，或改为 0（自动选择空闲端口）。`
           : `端口 ${port} 不可用：${error.message}`)
       })
-      srv.listen(port, '127.0.0.1', () => {
+      // exclusive: Windows 的 SO_REUSEADDR 会让"同端口已有进程监听"时的探测
+      // bind 静默成功（尤其 127.0.0.1 与 0.0.0.0 各自绑同一端口可共存），
+      // 结果是两个实例瓜分回环/局域网流量、访问被随机路由——必须禁掉。
+      srv.listen({ port, host: '127.0.0.1', exclusive: true }, () => {
         srv.close(() => resolve(null))
       })
     })
   }
+
+  // 局域网监听（host=0.0.0.0）用的 patch 覆盖文件：上游 CLI 的 --host 拒绝
+  // 0.0.0.0，但 webserver 行支持通过 --patch 覆盖层改绑定地址（官方机制），
+  // 且绑定 0.0.0.0 时上游会自动把本机 LAN IP 加入浏览器信任围栏。
+  const lanPatchPath = path.join(userData, 'lan.patch.yml')
 
   async function startServer() {
     // 固定端口按设置；0 = 自动选择空闲端口（与原版 DSH / 其他实例天然不冲突）
@@ -226,11 +241,24 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     env.DSH_HOME = dshHome
     env.ELECTRON_RUN_AS_NODE = '1'
 
+    // 参数顺序：launcher 自己的选项（--patch）必须放在应用参数（--port/--host）
+    // 之前——commander 的 passThroughOptions 会把未知选项之后的所有内容
+    // 原样透传给 web 应用，应用不认识 --patch 会直接报 "unknown option"。
+    const host = settings.web.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
+    const args = ['--expose-internals', dshBin, 'web']
+    if (host === '0.0.0.0') {
+      fs.writeFileSync(lanPatchPath, '- id: webserver\n  config:\n    host: 0.0.0.0\n    port: !!js ctx.webStartup.port ?? 3080\n', 'utf8')
+      args.push('--patch', lanPatchPath)
+    } else {
+      args.push('--host', '127.0.0.1')
+    }
+    args.push('--port', String(port))
+
     // --expose-internals：HMR 服务需要访问 Node 内部 ESM loader。
     // 系统 node 下有 node-addon-require-builtin 原生插件兜底，但 Electron 内置
     // Node 的 ABI 与该插件不匹配，必须显式传此标志走纯 JS 路径。
-    logMain(`spawning dsh web on port ${port}`)
-    const child = spawn(process.execPath, ['--expose-internals', dshBin, 'web', '--host', '127.0.0.1', '--port', String(port)], {
+    logMain(`spawning dsh web host=${host} port=${port}`)
+    const child = spawn(process.execPath, args, {
       cwd: dshHome,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -249,7 +277,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       logMain(`child exited code=${code} signal=${signal}`)
       if (!quitting && server && server.child === child) showErrorInWindow(`DSH 服务进程意外退出（code=${code} signal=${signal}）`)
     })
-    return { child, port, baseUrl: `http://127.0.0.1:${port}` }
+    return { child, port, host, baseUrl: `http://127.0.0.1:${port}` }
   }
 
   function waitReady(baseUrl, child) {
@@ -358,6 +386,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       try {
         applyThemeSource()
         win.webContents.insertCSS(`html, body { background-color: ${resolveWebBaseColor()} !important; }`)
+        pollCurrentSession()
       } catch { /* 注入失败不影响使用 */ }
     })
 
@@ -381,6 +410,23 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     })
 
     win.loadFile(loadingPage)
+  }
+
+  /** 轮询桌面窗口 WebUI 的"当前会话"（dsh.sessions.current），供局域网链接续接。 */
+  function pollCurrentSession() {
+    if (!win || win.isDestroyed()) return
+    const url = win.webContents.getURL()
+    if (!/^http:\/\/127\.0\.0\.1:\d+/.test(url)) return
+    win.webContents.executeJavaScript(
+      `(() => {
+        try {
+          const value = JSON.parse(localStorage.getItem('dsh.sessions.current') || '{}')
+          return typeof value.sessionId === 'string' && value.sessionId !== '' ? value.sessionId : null
+        } catch { return null }
+      })()`,
+    ).then((id) => {
+      if (typeof id === 'string' && id !== '') currentSessionId = id
+    }).catch(() => { /* 页面切换期间读取失败属正常 */ })
   }
 
   function killTree() {
@@ -450,9 +496,12 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
         }
         return
       }
-      // 目标端口与当前实例一致：复用现有实例，不重启、不产生第二个实例
-      if (server && server.child.exitCode === null && (settings.web.port === 0 || settings.web.port === server.port)) {
-        logMain(`server already running on target port ${server.port}, reusing`)
+      // 目标端口与监听地址都与当前实例一致：复用现有实例，不重启、不产生第二个实例
+      const targetHost = settings.web.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
+      if (server && server.child.exitCode === null
+        && (settings.web.port === 0 || settings.web.port === server.port)
+        && server.host === targetHost) {
+        logMain(`server already running on target ${server.host}:${server.port}, reusing`)
         if (win && !win.isDestroyed()) {
           win.loadURL(`${server.baseUrl}/`)
           if (win.isMinimized()) win.restore()
@@ -529,25 +578,43 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     if (win && !win.isDestroyed()) win.webContents.send('dsh:update-status', text)
   }
 
-  ipcMain.handle('dsh:get-state', () => ({
-    version: app.getVersion(),
-    dshVersion,
-    runtime: {
-      electron: process.versions.electron ?? '',
-      node: process.versions.node ?? '',
-      chrome: process.versions.chrome ?? '',
-    },
-    platform: process.platform,
-    arch: process.arch,
-    packaged: app.isPackaged,
-    portable: isPortable,
-    theme: resolveTheme(),
-    settings,
-    updateStatus,
-    updateSupported: updaterSupported(),
-    updateEnabled: updateEnabled(),
-    updateNote: updateNote(),
-  }))
+  ipcMain.handle('dsh:get-state', () => {
+    // 0.0.0.0 监听且服务在跑时，把本机 LAN IPv4 地址与访问 URL 一起返回给设置页；
+    // URL 附带 ?session=<当前会话>，远程设备打开后直接进入桌面端正在使用的同一会话
+    const sessionQuery = currentSessionId ? `?session=${encodeURIComponent(currentSessionId)}` : ''
+    // 只枚举物理网卡：按接口名黑名单过滤虚拟适配器（VMware/VirtualBox/WSL/
+    // Hyper-V/Docker/VPN/隧道等）。名字来自 OS 接口枚举（networkInterfaces 的
+    // 键），跨平台可用，与地址无关，因此不会误伤物理网卡。
+    const VIRTUAL_IFACE = /vmware|virtualbox|wsl|hyper-v|vethernet|vswitch|tap|tun|vpn|docker|loopback|virtual|bluetooth|hamachi|zerotier|tailscale|radmin|wan miniport|virbr|veth|br-|bridge/i
+    const lan = settings.web.host === '0.0.0.0' && server && server.child.exitCode === null
+      ? Object.entries(os.networkInterfaces()).flatMap(([name, list]) => {
+          if (VIRTUAL_IFACE.test(name)) return []
+          return (list || [])
+            .filter((iface) => iface && iface.family === 'IPv4' && !iface.internal)
+            .map((iface) => ({ url: `http://${iface.address}:${server.port}/${sessionQuery}` }))
+        })
+      : []
+    return {
+      version: app.getVersion(),
+      dshVersion,
+      runtime: {
+        electron: process.versions.electron ?? '',
+        node: process.versions.node ?? '',
+        chrome: process.versions.chrome ?? '',
+      },
+      platform: process.platform,
+      arch: process.arch,
+      packaged: app.isPackaged,
+      portable: isPortable,
+      theme: resolveTheme(),
+      settings,
+      lan,
+      updateStatus,
+      updateSupported: updaterSupported(),
+      updateEnabled: updateEnabled(),
+      updateNote: updateNote(),
+    }
+  })
   ipcMain.handle('dsh:save-settings', async (_event, next) => {
     settings = settingsStore.save(settingsPath, next)
     logMain(`settings saved: ${JSON.stringify(settings)}`)
@@ -719,6 +786,8 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     applyThemeSource()
     createWindow()
     runBoot()
+    // 周期刷新桌面窗口的"当前会话"（局域网链接续接用，读取开销极小）
+    setInterval(pollCurrentSession, 2000).unref?.()
     // 启动后延迟静默检查更新（仅支持自动更新的形态）
     if (updateEnabled()) {
       setTimeout(() => {

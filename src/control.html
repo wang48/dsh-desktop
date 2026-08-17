@@ -24,7 +24,6 @@
     --knob: #ffffff;
     --switch-checked-bg: #ffffff;
     --knob-checked: #000000;
-    --note-bg: #141414;
     --code-bg: #1a1a1a;
     --error: #e05555;
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -51,7 +50,6 @@
       --knob: #ffffff;
       --switch-checked-bg: #000000;
       --knob-checked: #ffffff;
-      --note-bg: #f4f4f4;
       --code-bg: #ececec;
       --error: #c62828;
     }
@@ -76,7 +74,6 @@
     --knob: #ffffff;
     --switch-checked-bg: #000000;
     --knob-checked: #ffffff;
-    --note-bg: #f4f4f4;
     --code-bg: #ececec;
     --error: #c62828;
   }
@@ -105,6 +102,16 @@
     transition: border-color 0.15s;
   }
   input[type="number"]:focus { outline: none; border-color: var(--input-focus); }
+  .hint.warn { color: var(--error); }
+  #lan-urls { margin: 8px 0 0; }
+  #lan-urls .lan-line {
+    font-size: 13px; margin: 3px 0;
+    font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+      'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+    word-break: break-all;
+  }
+  #lan-urls .lan-line a { color: var(--text); text-decoration: underline; cursor: pointer; }
+  #lan-urls .lan-line a:hover { color: var(--text-caption); }
   /* Ollama 式滑动开关 */
   .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
   .switch input { opacity: 0; width: 0; height: 0; }
@@ -143,14 +150,6 @@
   #status.ok { color: var(--text); }
   #status.err { color: var(--error); }
   #update-status { font-size: 13px; margin-top: 6px; min-height: 18px; color: var(--text-secondary); }
-  .links { display: flex; gap: 14px; margin-top: 6px; }
-  .links a { color: var(--text); font-size: 13px; text-decoration: underline; }
-  .links a:hover { color: var(--text-caption); }
-  .note {
-    background: var(--note-bg); border-left: 2px solid var(--border-strong);
-    border-radius: 6px; padding: 10px 12px; font-size: 12px; color: var(--text-secondary);
-    line-height: 1.7; margin-top: 6px;
-  }
   code {
     background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
     font-size: 12px; font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
@@ -166,24 +165,26 @@
 
     <div class="section">
       <div class="row">
-        <label>启用 WebUI（内置 <code>dsh web</code> 服务）</label>
-        <label class="switch">
-          <input type="checkbox" id="web-enabled">
-          <span class="slider"></span>
-        </label>
+        <label for="web-port">监听端口</label>
+        <input type="number" id="web-port" min="0" max="65535" step="1">
       </div>
-      <p class="hint">关闭后应用不再启动本地服务，窗口只显示本设置页；再次启用即恢复。</p>
+      <p class="hint"><code>0</code> = 自动选择空闲端口（默认）；固定端口被占用时保存会提示。</p>
     </div>
 
     <div class="section">
       <div class="row">
-        <label for="web-port">监听端口（127.0.0.1）</label>
-        <input type="number" id="web-port" min="0" max="65535" step="1">
+        <label>开放局域网访问</label>
+        <label class="switch">
+          <input type="checkbox" id="web-lan">
+          <span class="slider"></span>
+        </label>
       </div>
-      <p class="hint">
-        <code>0</code> = 自动选择空闲端口（默认，推荐）。固定端口时请避开已占用的端口——
-        例如原版 DSH / 其他实例正在使用的 3080，保存时会自动检测并提示。
+      <p class="hint">开启后局域网内其他设备可访问（访问链接附带当前会话）；需要公网访问请用 SSH 隧道。</p>
+      <p class="hint warn" id="host-warn" hidden>
+        ⚠ 局域网内任何设备都能控制本机 agent（可执行本机命令），仅在可信网络使用。
       </p>
+      <div id="lan-urls"></div>
+      <p class="hint" id="lan-pending" hidden>保存并重启后显示访问链接。</p>
     </div>
 
     <div class="section">
@@ -194,7 +195,7 @@
           <span class="slider"></span>
         </label>
       </div>
-      <p class="hint">启动后自动检查并下载新版本（下次启动生效）。关闭后仍可在下方手动"检查更新"。</p>
+      <p class="hint">启动后自动检查并下载新版本（下次启动生效）。</p>
     </div>
 
     <div class="section">
@@ -204,17 +205,6 @@
       </div>
       <div id="update-status"></div>
       <p class="hint" id="update-hint"></p>
-    </div>
-
-    <div class="section">
-      <div class="note">
-        <b>关于局域网访问：</b>上游 DSH 出于安全原因明确拒绝把服务绑定到局域网
-        （<code>--host 0.0.0.0</code> 会报 "intentionally not supported yet for safety"，
-        因为它等于把可执行任意命令的 agent 暴露到网络）。桌面版遵守同一立场，不提供绕过。
-        需要远程访问时，请使用 SSH 隧道（认证加密，流量仍是回环）：<br>
-        <code>ssh -L 127.0.0.1:&lt;端口&gt;:127.0.0.1:&lt;端口&gt; 用户@主机</code><br>
-        配合上方"固定端口"即可稳定连接。
-      </div>
     </div>
 
     <div class="actions">
@@ -243,8 +233,8 @@
         const state = await window.dshDesktop.getState()
         // 与主进程解析出的最终主题对齐（亮色时切换整体配色，不依赖 media query 时序）
         document.documentElement.dataset.theme = state.theme === 'light' ? 'light' : 'dark'
-        $('web-enabled').checked = state.settings.web.enabled
         $('web-port').value = state.settings.web.port
+        $('web-lan').checked = state.settings.web.host === '0.0.0.0'
         $('updates-auto').checked = state.settings.updates.auto !== false
         $('version').textContent = state.version
         $('ver-line').textContent = [
@@ -253,6 +243,7 @@
           `Electron ${state.runtime.electron} · Node ${state.runtime.node}`,
           `平台：${state.platform} ${state.arch}${state.portable ? ' · 便携版' : state.packaged ? '' : ' · 开发模式'}`,
         ].join(' · ')
+        renderLan(state.lan || [])
         $('update-hint').textContent = state.updateNote || ''
         $('update-status').textContent = state.updateStatus === 'idle' ? '' : state.updateStatus
         $('update-btn').disabled = !state.updateSupported
@@ -261,30 +252,83 @@
       }
     }
 
-    $('save-btn').addEventListener('click', async () => {
+    // 局域网开关联动：开启时显示风险警告与访问链接；无链接时提示待重启生效
+    function updateLanUi() {
+      const lan = $('web-lan').checked
+      $('host-warn').hidden = !lan
+      $('lan-urls').hidden = !lan
+      $('lan-pending').hidden = !lan || $('lan-urls').childElementCount > 0
+    }
+
+    // 表单改动标记：点「返回」时有未保存的修改则先提示保存
+    let dirty = false
+    const markDirty = () => { dirty = true }
+    $('web-port').addEventListener('input', markDirty)
+    $('web-lan').addEventListener('change', () => {
+      updateLanUi()
+      markDirty()
+      // 开关切换后立即刷新一次链接快照（页面加载时的数据可能已过时）
+      window.dshDesktop.getState().then((state) => renderLan(state.lan || [])).catch(() => {})
+    })
+    $('updates-auto').addEventListener('change', markDirty)
+
+    // 显示当前局域网访问链接（0.0.0.0 监听且服务在跑时由主进程返回，仅 IPv4）
+    // 点击在系统默认浏览器打开（target=_blank 走 setWindowOpenHandler → openExternal）
+    function renderLan(lan) {
+      const el = $('lan-urls')
+      el.textContent = ''
+      if (lan.length === 0) return
+      for (const { url } of lan) {
+        const line = document.createElement('div')
+        line.className = 'lan-line'
+        const link = document.createElement('a')
+        link.href = url
+        link.target = '_blank'
+        link.rel = 'noreferrer'
+        link.textContent = url
+        line.appendChild(link)
+        el.appendChild(line)
+      }
+      updateLanUi()
+    }
+
+    async function save() {
       const port = parseInt($('web-port').value, 10)
       if (!Number.isInteger(port) || port < 0 || port > 65535) {
         status('端口必须是 0–65535 的整数', false)
-        return
+        return false
       }
+      const host = $('web-lan').checked ? '0.0.0.0' : '127.0.0.1'
       status('正在保存…')
       try {
         const result = await window.dshDesktop.saveSettings({
-          web: { enabled: $('web-enabled').checked, port },
+          web: { host, port },
           updates: { auto: $('updates-auto').checked },
         })
         if (result.error) {
           status(result.error, false)
-          return
+          return false
         }
+        dirty = false
         status('已保存，正在重启服务…', true)
         await window.dshDesktop.restartWeb()
+        return true
       } catch (error) {
         status(`保存失败：${error.message}`, false)
+        return false
       }
-    })
+    }
+
+    $('save-btn').addEventListener('click', () => { save() })
 
     $('back-btn').addEventListener('click', async () => {
+      // 有未保存的修改时先确认：确定 = 保存并重启（成功后自动回到 WebUI）
+      if (dirty) {
+        const ok = window.confirm('有未保存的更改。\n\n「确定」保存并重启服务；「取消」留在本页。')
+        if (!ok) return
+        await save()
+        return
+      }
       try {
         const result = await window.dshDesktop.backToWeb()
         if (result.error) status(result.error, false)

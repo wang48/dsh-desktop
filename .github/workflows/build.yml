@@ -95,3 +95,6 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+          # -rc / -beta 标签标记为 prerelease：不进 Latest，稳定版的
+          # electron-updater（allowPrerelease=false）也不会把它们推给用户
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}

@@ -237,9 +237,11 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     env.DSH_HOME = dshHome
     env.ELECTRON_RUN_AS_NODE = '1'
 
-    // 参数顺序：launcher 自己的选项（--patch）必须放在应用参数（--port/--host）
-    // 之前——commander 的 passThroughOptions 会把未知选项之后的所有内容
-    // 原样透传给 web 应用，应用不认识 --patch 会直接报 "unknown option"。
+    // 参数顺序：launcher 自己的选项（--patch）必须放在应用参数（--port/--host/
+    // --no-open）之前——commander 的 passThroughOptions 会把未知选项之后的所有
+    // 内容原样透传给 web 应用，应用不认识 --patch 会直接报 "unknown option"。
+    // --no-open：DSH 0.1.1-rc.1 起 dsh web 默认会用系统浏览器打开 UI，桌面壳
+    // 自己就是窗口，必须禁掉，否则每次启动都会多弹一个浏览器标签页。
     const host = settings.web.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
     const args = ['--expose-internals', dshBin, 'web']
     if (host === '0.0.0.0') {
@@ -249,6 +251,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       args.push('--host', '127.0.0.1')
     }
     args.push('--port', String(port))
+    args.push('--no-open')
 
     // --expose-internals：HMR 服务需要访问 Node 内部 ESM loader。
     // 系统 node 下有 node-addon-require-builtin 原生插件兜底，但 Electron 内置

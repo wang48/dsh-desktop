@@ -34,7 +34,7 @@ test('dsh web binds 0.0.0.0 via --patch and prints the LAN URL', { timeout: BOOT
   const logFile = path.join(tmp, 'boot.log')
   const fd = fs.openSync(logFile, 'w')
   const env = { ...process.env, DSH_HOME: home }
-  const child = spawn(process.execPath, [dshBin, 'web', '--patch', patchFile, '--port', '0'], {
+  const child = spawn(process.execPath, [dshBin, 'web', '--patch', patchFile, '--port', '0', '--no-open'], {
     cwd: home,
     env,
     stdio: ['ignore', fd, fd],

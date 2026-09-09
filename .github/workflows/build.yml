@@ -99,15 +99,15 @@ jobs:
           body: |
             ## DSH Desktop ${{ github.ref_name }}
 
-            基于 DeepSeek Harness（@deepseek-ai/dsh 0.1.1-rc.1）的桌面外壳。
+            基于 DeepSeek Harness（@deepseek-ai/dsh 0.1.2-rc.1）的桌面外壳。
 
             ### 新功能
             - **macOS 一体式标题栏**：移除独立系统标题栏，红绿灯悬浮在页面自身表面（侧栏/对话头部背景）上，与页面融为一体；顶部保留透明可拖拽区（拖动窗口 / 双击缩放 / 右键弹应用菜单）。Windows/Linux 保持系统标题栏
-            - **上游升级 DSH 0.1.1-rc.1**：19 个 @deepseek-ai/dsh* 依赖完整跟随上游最新发布线
+            - **上游升级 DSH 0.1.2-rc.1**：19 个 @deepseek-ai/dsh* 依赖完整跟随上游最新发布线
 
             ### 改进
             - 适配上游新版引导注入架构：secure-context `crypto.randomUUID` polyfill 改为注入行表首条 head 脚本，局域网 http 下模型/Agent 预设设置页仍可用
-            - dsh web 0.1.1-rc.1 起默认用系统浏览器打开 UI，桌面壳 spawn 参数补 `--no-open`，不再每次启动多弹浏览器标签页
+            - dsh web 0.1.2-rc.1 起默认用系统浏览器打开 UI，桌面壳 spawn 参数补 `--no-open`，不再每次启动多弹浏览器标签页；LAN 地址现在带访问 token
             - 局域网访问、主题同步、macOS 粘贴修复、测试套件等 v0.2.6 已有能力保持不变
 
             ### 安全说明

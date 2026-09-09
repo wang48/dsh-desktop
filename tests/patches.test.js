@@ -14,7 +14,7 @@ const CASES = {
     marker: 'dsh-desktop patch: koffi.view is unsupported under Electron',
   },
   'patch-acl-runner-window.mjs': {
-    file: 'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/lib/types-CNjZgO4h.js',
+    file: 'node_modules/@deepseek-ai/dsh-win32-process/lib/index.js',
     marker: 'dsh-desktop patch: STARTF_USESHOWWINDOW + SW_HIDE for restricted-token children',
   },
   'patch-secure-context.mjs': {

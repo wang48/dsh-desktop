@@ -8,7 +8,7 @@
 // 因此宿主把 polyfill（UUID v4）作为 index 注入表的第一条 head 脚本，
 // 在任何 origin 的页面头部最先执行，且不修改任何浏览器 bundle。
 //
-// 注入点（DSH 0.1.1-rc.1 起改为结构化注入表）：dsh-client-modules（host 侧）
+// 注入点（DSH 0.1.1-rc.1 起改为结构化注入表，0.1.2-rc.1 延续该 API）：dsh-client-modules（host 侧）
 // bootInjections() 的返回数组——在其首个 {kind:"script", placement:"head"}
 // 行之前插入 polyfill 行；dsh-host-webserver 的 renderIndexInjections 会把它
 // 渲染为紧随 <head> 的 <script>，与旧版 injectBootManifest 注入语义一致。
@@ -21,14 +21,14 @@ const target = join(root, 'node_modules', '@deepseek-ai', 'dsh-client-modules', 
 const MARKER = 'dsh-desktop patch: insecure-context crypto.randomUUID'
 
 // bootInjections() 返回数组的头部：首个 {kind:"script", placement:"head"} 行
-const ORIGINAL = '\treturn [\n\t\t{\n\t\t\tkind: "script",\n\t\t\tplacement: "head",\n\t\t\ttext: queue\n\t\t},'
+const ORIGINAL = '\tconst rows = [{\n\t\tkind: "script",\n\t\tplacement: "head",\n\t\ttext: queue\n\t}];'
 
 // polyfill 源码（不含反引号 / ${ / </script> 序列）。注意：作为注入行对象的
 // text 属性值，它必须是「字符串」，不能是立即执行表达式——否则 IIFE 会在 host
 // 进程（node）里先执行掉，text 变成 undefined，浏览器端拿不到 polyfill。
 const POLYFILL_SRC = '/* ' + MARKER + ' */ (function(){if(typeof crypto==="undefined"||typeof crypto.getRandomValues!=="function")return;if(typeof crypto.randomUUID==="function")return;function uuid(){var b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h="";for(var i=0;i<16;i++){var s=b[i].toString(16);h+=s.length<2?"0"+s:s}return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20)}try{crypto.randomUUID=uuid}catch(e){try{Object.defineProperty(crypto,"randomUUID",{value:uuid,configurable:true,writable:true})}catch(e2){}}})();'
 
-const PATCHED = '\treturn [\n\t\t{\n\t\t\tkind: "script",\n\t\t\tplacement: "head",\n\t\t\ttext: ' + JSON.stringify(POLYFILL_SRC) + '\n\t\t},\n\t\t{\n\t\t\tkind: "script",\n\t\t\tplacement: "head",\n\t\t\ttext: queue\n\t\t},'
+const PATCHED = '\tconst rows = [{\n\t\tkind: "script",\n\t\tplacement: "head",\n\t\ttext: ' + JSON.stringify(POLYFILL_SRC) + '\n\t}, {\n\t\tkind: "script",\n\t\tplacement: "head",\n\t\ttext: queue\n\t}];'
 
 if (!existsSync(target)) {
   console.error(`[patch-secure-context] target not found: ${target}`)

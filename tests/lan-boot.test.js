@@ -54,7 +54,8 @@ test('dsh web binds 0.0.0.0 via --patch and prints the LAN URL', { timeout: BOOT
     }
     const tail = fs.readFileSync(logFile, 'utf8').slice(-800)
     assert.ok(lanUrl !== null, `no LAN URL in boot log; child exit=${child.exitCode}; log tail:\n${tail}`)
-    assert.match(lanUrl, /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+$/, `unexpected LAN URL ${lanUrl}`)
+    // Newer DSH releases append the LAN access token to the advertised URL.
+    assert.match(lanUrl, /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+\/?(?:\?token=[A-Za-z0-9_-]+)?$/, `unexpected LAN URL ${lanUrl}`)
   } finally {
     killTree(child)
     try { fs.closeSync(fd) } catch { /* already closed */ }

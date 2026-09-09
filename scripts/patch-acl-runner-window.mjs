@@ -15,22 +15,28 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const target = join(root, 'node_modules', '@deepseek-ai', 'dsh-sandbox-windows-acl', 'lib', 'types-CNjZgO4h.js')
+// 0.1.2-rc.1 moved process creation into the shared win32-process package;
+// keep the patch on that stable package entry instead of a hashed ACL bundle.
+const target = join(root, 'node_modules', '@deepseek-ai', 'dsh-win32-process', 'lib', 'index.js')
 const MARKER = 'dsh-desktop patch: STARTF_USESHOWWINDOW + SW_HIDE for restricted-token children'
 
 // spawnSandboxed（管道 stdio）
-const ORIG_PIPE = `		dwFlags: 256,
-		hStdInput: stdIn.read,`
-const PATCH_PIPE = `		dwFlags: 256 | 1,
-		wShowWindow: 0, // ${MARKER}
-		hStdInput: stdIn.read,`
+const ORIG_PIPE = `			cb: 104,
+			dwFlags: 256,
+			hStdInput: stdIn.read,`
+const PATCH_PIPE = `			cb: 104,
+			dwFlags: 256 | 1,
+			wShowWindow: 0, // ${MARKER}
+			hStdInput: stdIn.read,`
 
 // spawnSandboxedInherited（继承 stdio）
-const ORIG_INHERIT = `		dwFlags: 256,
-		hStdInput: stdIn,`
-const PATCH_INHERIT = `		dwFlags: 256 | 1,
-		wShowWindow: 0, // ${MARKER}
-		hStdInput: stdIn,`
+const ORIG_INHERIT = `			cb: 104,
+			dwFlags: 256,
+			hStdInput: stdIn,`
+const PATCH_INHERIT = `			cb: 104,
+			dwFlags: 256 | 1,
+			wShowWindow: 0, // ${MARKER}
+			hStdInput: stdIn,`
 
 if (!existsSync(target)) {
   console.error(`[patch-acl-runner-window] target not found: ${target}`)

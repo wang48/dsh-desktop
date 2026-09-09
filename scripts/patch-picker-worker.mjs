@@ -18,7 +18,7 @@ const MARKER = 'dsh-desktop patch: koffi.view is unsupported under Electron'
 const ORIGINAL = `function readUtf16(koffi, address) {
 	const bytes = Buffer.from(koffi.view(address, 32768));
 	let end = 0;
-	while (end + 1 < bytes.length && bytes[end] !== 0) end += 2;
+	while (end + 1 < bytes.length && !(bytes[end] === 0 && bytes[end + 1] === 0)) end += 2;
 	return bytes.toString("utf16le", 0, end);
 }`
 

@@ -79,16 +79,28 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Publish Release
-    if: startsWith(github.ref, 'refs/tags/')
+    name: Publish Release (successful platforms)
+    # The matrix keeps running when one platform fails. Always enter this job
+    # for a tag so artifacts from the platforms that did finish still ship;
+    # `download-artifact` ignores the failed matrix leg because it uploaded
+    # nothing. A cancelled build is the one case where publishing is skipped.
+    if: ${{ always() && startsWith(github.ref, 'refs/tags/') && needs.build.result != 'cancelled' }}
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Download successful platform artifacts
         uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Verify at least one platform artifact
+        shell: bash
+        run: |
+          if ! find artifacts -type f -print -quit | grep -q .; then
+            echo "No platform artifacts were produced; refusing to publish an empty release."
+            exit 1
+          fi
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3

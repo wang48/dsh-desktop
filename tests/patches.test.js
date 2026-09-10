@@ -9,9 +9,13 @@ const path = require('node:path')
 
 const root = path.join(__dirname, '..')
 const CASES = {
+  'patch-mac-keychain.mjs': {
+    file: 'node_modules/app-builder-lib/out/codeSign/macCodeSign.js',
+    marker: 'dsh-desktop patch: use keychain password for partition list',
+  },
   'patch-picker-worker.mjs': {
     file: 'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/worker.cjs',
-    marker: 'dsh-desktop patch: koffi.view is unsupported under Electron',
+    marker: 'return koffi.decode(pointer.subarray(0, pointerSize), "str16");',
   },
   'patch-acl-runner-window.mjs': {
     file: 'node_modules/@deepseek-ai/dsh-win32-process/lib/index.js',
@@ -35,5 +39,6 @@ for (const [script, { file, marker }] of Object.entries(CASES)) {
     assert.strictEqual(second.status, 0, `${script} re-run (idempotency) exited ${second.status}`)
     const content = fs.readFileSync(path.join(root, file), 'utf8')
     assert.ok(content.includes(marker), `${script}: marker missing in ${file} — patch did not land`)
+    if (script === 'patch-picker-worker.mjs') assert.ok(!content.includes('koffi.view('), 'picker must not create external ArrayBuffers')
   })
 }

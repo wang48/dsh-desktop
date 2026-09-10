@@ -23,6 +23,7 @@ const net = require('node:net')
 const http = require('node:http')
 const os = require('node:os')
 const settingsStore = require('./settings.cjs')
+const { createLaunchUrlReader, lanLaunchUrl } = require('./launch-url.cjs')
 
 const APP_ID = 'com.deepseek.dsh.desktop'
 const APP_NAME = 'DSH Desktop'
@@ -266,7 +267,9 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       windowsHide: !hiddenConsole,
     })
     logMain(`dsh child pid=${child.pid}`)
-    child.stdout.on('data', writeLog)
+    const baseUrl = `http://127.0.0.1:${port}`
+    const launch = createLaunchUrlReader(baseUrl)
+    child.stdout.on('data', (chunk) => { launch.push(chunk); writeLog(chunk) })
     child.stderr.on('data', writeLog)
     child.on('error', (error) => {
       logMain(`child spawn error: ${error.message}`)
@@ -276,10 +279,11 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       logMain(`child exited code=${code} signal=${signal}`)
       if (!quitting && server && server.child === child) showErrorInWindow(`DSH 服务进程意外退出（code=${code} signal=${signal}）`)
     })
-    return { child, port, host, baseUrl: `http://127.0.0.1:${port}` }
+    return { child, port, host, baseUrl, get launchUrl() { return launch.url } }
   }
 
-  function waitReady(baseUrl, child) {
+  function waitReady(instance) {
+    const { child } = instance
     return new Promise((resolve, reject) => {
       const started = Date.now()
       const timer = setInterval(() => {
@@ -288,9 +292,14 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
           clearInterval(timer)
           return reject(new Error('服务进程提前退出'))
         }
-        const req = http.get(`${baseUrl}/`, { timeout: 3000 }, (res) => {
+        if (Date.now() - started > READY_TIMEOUT_MS) {
+          clearInterval(timer)
+          return reject(new Error(`等待服务就绪超时（${READY_TIMEOUT_MS / 1000}s）`))
+        }
+        if (!instance.launchUrl) return
+        const req = http.get(instance.launchUrl, { timeout: 3000 }, (res) => {
           res.resume()
-          if (res.statusCode && res.statusCode < 500) {
+          if (res.statusCode === 200 || (res.statusCode === 303 && res.headers.location === '/' && res.headers['set-cookie'])) {
             clearInterval(timer)
             resolve()
           } else {
@@ -299,10 +308,6 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
         })
         req.on('error', () => {})
         req.on('timeout', () => req.destroy())
-        if (Date.now() - started > READY_TIMEOUT_MS) {
-          clearInterval(timer)
-          reject(new Error(`等待服务就绪超时（${READY_TIMEOUT_MS / 1000}s）`))
-        }
       }, POLL_INTERVAL_MS)
     })
   }
@@ -552,7 +557,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
         && server.host === targetHost) {
         logMain(`server already running on target ${server.host}:${server.port}, reusing`)
         if (win && !win.isDestroyed()) {
-          win.loadURL(`${server.baseUrl}/`)
+          if (server.launchUrl) win.loadURL(server.launchUrl)
           if (win.isMinimized()) win.restore()
           win.show()
         }
@@ -574,9 +579,9 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
         win.show()
       }
       server = await startServer()
-      await waitReady(server.baseUrl, server.child)
+      await waitReady(server)
       logMain(`server ready: ${server.baseUrl}`)
-      if (win && !win.isDestroyed()) win.loadURL(`${server.baseUrl}/`)
+      if (win && !win.isDestroyed()) win.loadURL(server.launchUrl)
     } catch (error) {
       showErrorInWindow(error.message)
     } finally {
@@ -633,12 +638,12 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     // Hyper-V/Docker/VPN/隧道等）。名字来自 OS 接口枚举（networkInterfaces 的
     // 键），跨平台可用，与地址无关，因此不会误伤物理网卡。
     const VIRTUAL_IFACE = /vmware|virtualbox|wsl|hyper-v|vethernet|vswitch|tap|tun|vpn|docker|loopback|virtual|bluetooth|hamachi|zerotier|tailscale|radmin|wan miniport|virbr|veth|br-|bridge/i
-    const lan = settings.web.host === '0.0.0.0' && server && server.child.exitCode === null
+    const lan = settings.web.host === '0.0.0.0' && server && server.launchUrl && server.child.exitCode === null
       ? Object.entries(os.networkInterfaces()).flatMap(([name, list]) => {
           if (VIRTUAL_IFACE.test(name)) return []
           return (list || [])
             .filter((iface) => iface && iface.family === 'IPv4' && !iface.internal)
-            .map((iface) => ({ url: `http://${iface.address}:${server.port}/` }))
+            .map((iface) => ({ url: lanLaunchUrl(iface.address, server.port, server.launchUrl) }))
         })
       : []
     return {
@@ -680,7 +685,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
   ipcMain.handle('dsh:back-to-web', () => {
     if (server && server.child.exitCode === null) {
       applyThemeSource()
-      if (win && !win.isDestroyed()) win.loadURL(`${server.baseUrl}/`)
+      if (win && !win.isDestroyed() && server.launchUrl) win.loadURL(server.launchUrl)
       return { ok: true }
     }
     return { error: 'WebUI 服务未运行。请先启用 WebUI 并点击"保存并重启"启动服务。' }

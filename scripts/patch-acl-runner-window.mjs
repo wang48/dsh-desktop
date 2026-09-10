@@ -32,11 +32,11 @@ const PATCH_PIPE = `			cb: 104,
 // spawnSandboxedInherited（继承 stdio）
 const ORIG_INHERIT = `			cb: 104,
 			dwFlags: 256,
-			hStdInput: stdIn,`
+			hStdInput: stdio.stdin,`
 const PATCH_INHERIT = `			cb: 104,
 			dwFlags: 256 | 1,
 			wShowWindow: 0, // ${MARKER}
-			hStdInput: stdIn,`
+			hStdInput: stdio.stdin,`
 
 if (!existsSync(target)) {
   console.error(`[patch-acl-runner-window] target not found: ${target}`)

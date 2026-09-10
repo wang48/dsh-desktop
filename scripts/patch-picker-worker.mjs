@@ -42,6 +42,17 @@ if (!existsSync(workerPath)) {
 }
 
 const source = readFileSync(workerPath, 'utf8').replace(/\r\n/g, '\n')
+// DSH 0.1.5-rc.1 fixes this upstream using a V8-owned pointer buffer.
+// Keep that implementation; unknown upstream shapes still fail closed.
+const UPSTREAM_FIXED = `function readUtf16(koffi, address, pointerSize) {
+	const pointer = Buffer.alloc(8);
+	pointer.writeBigUInt64LE(BigInt(address));
+	return koffi.decode(pointer.subarray(0, pointerSize), "str16");
+}`
+if (source.includes(UPSTREAM_FIXED) && !source.includes('koffi.view(')) {
+  console.log('[patch-picker-worker] upstream Electron-safe implementation, skip')
+  process.exit(0)
+}
 if (source.includes(MARKER)) {
   console.log('[patch-picker-worker] already patched, skip')
   process.exit(0)

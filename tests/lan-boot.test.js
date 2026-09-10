@@ -6,6 +6,7 @@ const assert = require('node:assert')
 const { spawn, spawnSync } = require('node:child_process')
 const fs = require('node:fs')
 const path = require('node:path')
+const { createLaunchUrlReader } = require('../src/launch-url.cjs')
 
 const root = path.join(__dirname, '..')
 const dshBin = path.join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
@@ -56,6 +57,22 @@ test('dsh web binds 0.0.0.0 via --patch and prints the LAN URL', { timeout: BOOT
     assert.ok(lanUrl !== null, `no LAN URL in boot log; child exit=${child.exitCode}; log tail:\n${tail}`)
     // Newer DSH releases append the LAN access token to the advertised URL.
     assert.match(lanUrl, /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+\/?(?:\?token=[A-Za-z0-9_-]+)?$/, `unexpected LAN URL ${lanUrl}`)
+    // Verify the actual desktop entry page, not just the startup log.
+    const baseUrl = `http://127.0.0.1:${new URL(lanUrl).port}`
+    const launch = createLaunchUrlReader(baseUrl)
+    launch.push(fs.readFileSync(logFile, 'utf8'))
+    assert.ok(launch.url, 'desktop must capture the authenticated startup URL')
+    const anonymous = await fetch(baseUrl, { signal: AbortSignal.timeout(15000) })
+    assert.equal(anonymous.status, 401, 'upstream authentication must stay enabled')
+    const exchange = await fetch(launch.url, { redirect: 'manual', signal: AbortSignal.timeout(15000) })
+    assert.equal(exchange.status, 303, 'launch token must exchange for a browser cookie')
+    const cookie = exchange.headers.get('set-cookie')
+    assert.ok(cookie, 'launch response must set a session cookie')
+    const response = await fetch(baseUrl, { headers: { cookie: cookie.split(';')[0] }, signal: AbortSignal.timeout(15000) })
+    assert.equal(response.status, 200, 'desktop entry page must load')
+    const html = await response.text()
+    assert.ok(html.includes('dsh-desktop patch: insecure-context crypto.randomUUID'), 'LAN UUID polyfill must reach the browser')
+    assert.ok(html.includes('__ModuleLoader__'), 'upstream web bootstrap must be present')
   } finally {
     killTree(child)
     try { fs.closeSync(fd) } catch { /* already closed */ }

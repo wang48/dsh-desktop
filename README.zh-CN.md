@@ -1,5 +1,9 @@
 # DSH-Desktop
 
+[![CI](https://github.com/wang48/dsh-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/wang48/dsh-desktop/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/wang48/dsh-desktop?include_prereleases)](https://github.com/wang48/dsh-desktop/releases)
+[![License](https://img.shields.io/github/license/wang48/dsh-desktop)](LICENSE)
+
 把 [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（npm 包
 `@deepseek-ai/dsh`）封装成**桌面应用（Windows / macOS / Linux）**：Electron 外壳内置
 完整的 DSH Web 运行时，启动后在本地拉起 `dsh web` 服务，再用原生窗口加载 UI。
@@ -14,11 +18,14 @@
 - **开箱即用**：内置 Electron + 完整 DSH 依赖树（无需系统 Node）
 - **多端支持**：Windows（安装版/便携版）、macOS（dmg/zip，Intel + Apple Silicon）、Linux（AppImage/deb）
 - **数据隔离**：DSH_HOME 位于用户数据目录下，不影响命令行版；单实例
-- **桌面设置**：WebUI 开关、可选固定端口、关于信息、自动更新 - 全部外壳层实现，不改 DSH
+- **桌面集成**：可选固定端口、局域网访问、运行时信息、原生菜单和自动更新
 - **干净退出**：关闭窗口时杀掉服务进程树，不留后台进程
 - **macOS 一体式标题栏**：macOS 下移除独立标题栏条，红绿灯悬浮在页面自身表面
   （侧栏/对话头部背景）上，与页面融为一体；顶部保留可拖拽区（双击缩放、右键弹应用菜单）。
   Windows/Linux 保持系统标题栏。
+
+依赖安装阶段会应用少量 Electron/平台兼容补丁，并由回归测试守护。上游文件结构发生
+变化时补丁会直接失败，避免把未经确认的修改静默套用到新版本依赖。
 
 ## 安装
 
@@ -39,6 +46,9 @@
 
 > ⚠️ Windows 产物未做代码签名，SmartScreen 可能提示"已保护你的电脑"，点 **更多信息 → 仍要运行**。
 
+请只从本仓库的 [Releases](../../releases) 页面下载。版本号带 `-rc` 的是候选版本，
+稳定性可能低于 Latest 正式版。
+
 ## 数据与迁移
 
 | 路径 | 说明 |
@@ -52,15 +62,31 @@
 
 从官方 DSH 迁移历史会话（只复制、原版不受影响）：见 [docs/MIGRATION.md](docs/MIGRATION.md)。
 
+## 局域网访问
+
+桌面设置可让 Web UI 监听 `0.0.0.0`，并显示本机局域网访问链接。当前默认值是
+`0.0.0.0`；如果不希望其他设备连接，请在设置中切换为仅本机回环地址。
+
+> **安全警告：**能访问该服务的设备可能控制一个可在本机执行命令的 agent。
+> DSH-Desktop 不额外提供身份认证。仅在可信局域网中使用；远程访问应优先使用
+> SSH 隧道或其他带认证的访问层，切勿把端口直接暴露到公网。
+
+上游 DSH 仍会把设置、凭据等特权方法限制在本机回环地址；其他设备访问相关页面时
+出现 `403` 属于预期的安全边界。
+
 ## 开发
 
-仅构建时需要 Node.js ≥ 20（最终用户无需安装任何环境）。
+仅构建时需要 Node.js 22.12 或更高版本（最终用户无需安装任何环境）。
 
-```powershell
-npm install    # electron / electron-builder / dsh 依赖
-npm start      # 本地运行（electron .）
-npm run dist   # 构建 Windows 安装版 + 便携版 -> dist/
+```bash
+npm ci          # 安装锁定依赖并应用兼容补丁
+npm start       # 本地运行（electron .）
+npm run check   # 语法检查与集成测试
+npm run dist    # 为当前操作系统打包 -> dist/
 ```
+
+平台专用命令为 `npm run dist:win`、`npm run dist:mac` 和 `npm run dist:linux`。
+贡献与验证说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 常见问题
 
@@ -69,6 +95,11 @@ npm run dist   # 构建 Windows 安装版 + 便携版 -> dist/
 - **SmartScreen / Gatekeeper 拦截**：Windows 产物未签名（见安装说明）；macOS 自 v0.2.4 起已签名 + 公证。
 - **启动异常**：查看窗口内错误页或 `server.log`；删除数据目录（Windows 为
   `%APPDATA%\DSH-Desktop`）可重置应用状态。
+- **问题也能在官方 DSH 复现**：请反馈到
+  [上游项目](https://github.com/deepseek-ai/deepseek-harness/issues)；桌面打包、升级或
+  系统集成问题请使用本仓库的 [Issues](../../issues)。
+
+安全漏洞请按 [SECURITY.md](SECURITY.md) 说明私下报告，不要创建公开 Issue。
 
 ## 许可证
 

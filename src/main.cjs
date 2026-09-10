@@ -7,10 +7,10 @@
  *  1. 单实例锁（失败时降级继续运行）
  *  2. 立即打开窗口显示加载页，避免启动期"有进程无界面"
  *  3. 在 userData/home 下建立独立的 DSH_HOME（与命令行版数据隔离）
- *  4. 按设置（WebUI 开关 / 固定端口）用 ELECTRON_RUN_AS_NODE 模式拉起内置 `dsh web`
+ *  4. 按设置（监听地址 / 固定端口）用 ELECTRON_RUN_AS_NODE 模式拉起内置 `dsh web`
  *  5. 轮询 HTTP 等服务就绪，然后把窗口切换到 http://127.0.0.1:<port>
- *  6. 出错时把错误与最近日志显示在窗口内（可打开日志/重试）；设置页可开关 WebUI
- *  7. GitHub Release 自动升级（electron-updater，便携版/macOS 降级为打开下载页）
+ *  6. 出错时把错误与最近日志显示在窗口内（可打开日志/重试）
+ *  7. GitHub Release 自动升级（便携版与 Linux deb 降级为打开下载页）
  *  8. 退出时杀掉服务进程树
  */
 
@@ -668,14 +668,15 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     }
   })
   ipcMain.handle('dsh:save-settings', async (_event, next) => {
-    settings = settingsStore.save(settingsPath, next)
-    logMain(`settings saved: ${JSON.stringify(settings)}`)
+    const nextSettings = settingsStore.normalize(next)
     // 正在运行实例的端口不算占用：同端口保存 = 复用现有实例，不重启
     const currentPort = server && server.child.exitCode === null ? server.port : null
-    if (settings.web.port !== 0 && settings.web.port !== currentPort) {
-      const busy = await probePort(settings.web.port)
+    if (nextSettings.web.port !== 0 && nextSettings.web.port !== currentPort) {
+      const busy = await probePort(nextSettings.web.port)
       if (busy !== null) return { error: busy }
     }
+    settings = settingsStore.save(settingsPath, nextSettings)
+    logMain(`settings saved: ${JSON.stringify(settings)}`)
     return { ok: true }
   })
   ipcMain.handle('dsh:restart-web', () => {

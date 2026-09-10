@@ -1,14 +1,18 @@
 name: Build
 
 on:
-  # Build + publish only on version tags; everyday main pushes stay lightweight
-  # (no CI run). Use the manual "Run workflow" button to test-build on demand.
+  # Package and publish only on version tags. Ordinary pushes and pull requests
+  # are covered by ci.yml; use the manual trigger for an on-demand package build.
   push:
     tags: ['v*']
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -27,6 +31,7 @@ jobs:
             cmd: npx electron-builder --linux --publish never
             artifact: DeepSeek-Harness-linux
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -38,8 +43,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test desktop integration
-        run: npm test
+      - name: Validate source and desktop integration
+        run: npm run check
 
       - name: Build installers
         shell: bash
@@ -48,7 +53,7 @@ jobs:
           # used (auto-discovery may pick the runner's "Apple Development" cert).
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           # Apple signing/notarization secrets only on macOS tagged releases;
-          # main pushes build unsigned (fast sanity builds).
+          # manually triggered builds stay unsigned.
           CSC_NAME: ${{ matrix.os == 'macos-latest' && startsWith(github.ref, 'refs/tags/') && secrets.CSC_NAME || '' }}
           CSC_LINK: ${{ matrix.os == 'macos-latest' && startsWith(github.ref, 'refs/tags/') && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && startsWith(github.ref, 'refs/tags/') && secrets.CSC_KEY_PASSWORD || '' }}
@@ -80,6 +85,7 @@ jobs:
             dist/*.yml
             dist/*.yaml
           if-no-files-found: error
+          retention-days: 7
 
   release:
     name: Publish Release (successful platforms)
@@ -90,6 +96,9 @@ jobs:
     if: ${{ always() && startsWith(github.ref, 'refs/tags/') && needs.build.result != 'cancelled' }}
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - name: Download successful platform artifacts
         uses: actions/download-artifact@v8
@@ -116,18 +125,18 @@ jobs:
 
             基于 DeepSeek Harness（@deepseek-ai/dsh 0.1.5-rc.1）的桌面外壳。
 
-            ### 上游更新
-            - DSH 从 **0.1.2-rc.1** 升级至 **0.1.5-rc.1**（2026-09-10 发布），同步更新 19 个直接依赖及其传递依赖。
+            内置 DeepSeek Harness：**@deepseek-ai/dsh 0.1.5-rc.1**。
 
             ### 改进
-            - 适配上游启动 token / Cookie 认证：桌面窗口使用认证启动链接，局域网分享链接携带 token。
-            - 修复 electron-builder 的 macOS 临时钥匙串密码传递：证书导入使用证书密码，钥匙串访问权限设置使用钥匙串密码。
-            - CI 在各平台打包前运行桌面集成和兼容补丁测试；保留成功平台单独上传、发布的行为。
-            - 采用上游 Windows 目录选择器的 Electron 兼容修复，适配隐藏控制台补丁；保留局域网 HTTP UUID 兼容、主题同步及 macOS 一体式标题栏。
+            - 新增主分支和 Pull Request CI，在 Node.js 22/24 上执行语法检查及完整集成测试；发版任务改为最小权限、并发保护和明确超时。
+            - 修复固定端口不可用时仍把无效配置写入设置文件的问题，现在验证通过后才持久化。
+            - 修正 Electron 43 本地打包命令和 Node.js 最低版本要求，补齐 Windows、macOS、Linux 平台命令。
+            - 修复 `fast-uri` 与 `js-yaml` 的高危传递依赖漏洞，当前 `npm audit` 为 0。
+            - 完善中英文 README、项目元数据、贡献与安全政策、CODEOWNERS、Issue / PR 模板和 Dependabot 配置。
 
             ### 安全说明
-            - 0.0.0.0 监听时，局域网内任何设备都能控制本机 agent（可执行本机命令），仅建议在可信网络使用；公网访问请使用 SSH 隧道
-            - LAN 端可驱动 agent、读写会话，但 `settings.*` / `credentials.*` 等特权方法仍由上游钉在回环（模型设置页提示 403 为预期边界）
+            - `0.0.0.0` 监听会向局域网开放可执行本机命令的 agent，仅建议在可信网络使用；公网访问请使用 SSH 隧道或其他认证层。
+            - LAN 端可驱动 agent、读写会话，但 `settings.*` / `credentials.*` 等特权方法仍由上游限制在回环地址。
           # -rc / -beta 标签标记为 prerelease：不进 Latest，稳定版的
           # electron-updater（allowPrerelease=false）也不会把它们推给用户
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}

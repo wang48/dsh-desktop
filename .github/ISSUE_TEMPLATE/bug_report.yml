@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible DSH-Desktop problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve DSH-Desktop. Before attaching logs, remove API keys, tokens, local paths, and other sensitive data.
+  - type: input
+    id: version
+    attributes:
+      label: DSH-Desktop version
+      placeholder: e.g. 0.2.7-rc.5
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: package
+    attributes:
+      label: Package type and architecture
+      placeholder: e.g. portable x64, dmg arm64, AppImage x64
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: Tell us exactly what you did and when the problem appeared.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste only the relevant excerpt and remove all secrets and personal paths.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: I removed API keys, tokens, credentials, and other sensitive information.
+          required: true
+        - label: I confirmed whether the same issue reproduces in the official DSH CLI or Web UI.
+          required: true

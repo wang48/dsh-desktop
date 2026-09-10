@@ -1,15 +1,15 @@
 # DSH-Desktop 桌面功能设计（升级 / WebUI 开关 / 开放端口）
 
-> 原则：**只做原版封装，完全兼容原版**。所有功能都在 Electron 外壳层实现，
-> 不修改、不替换、不 patch `@deepseek-ai/dsh` 的任何代码与行为；
-> 外壳只通过 DSH 官方 CLI 参数与文档化机制工作。
+> 原则：桌面能力尽量留在 Electron 外壳层，并优先使用 DSH 的公开 CLI 参数与
+> `--patch` 配置机制。确需兼容 Electron 或特定系统时，安装阶段补丁必须保持最小、
+> 幂等、可测试，并在上游文件结构变化时失败关闭。
 
 ## 现状与结论速览
 
 | 功能 | 可行性 | 兼容方式 |
 |---|---|---|
 | ① 应用升级 | ✅ 可行 | 纯外壳（electron-updater + GitHub Release），DSH 零感知 |
-| ② WebUI 开关 | ⛔ 已从 UI 移除 | 后端逻辑保留（`web.enabled` 默认 true，恒启动服务） |
+| ② WebUI 开关 | ⛔ 已从 UI 移除 | 后端字段仅为旧配置兼容保留（`web.enabled` 默认 true） |
 | ③a 固定端口（127.0.0.1） | ✅ 可行 | 官方参数 `--host 127.0.0.1 --port <n>` |
 | ③b 开放端口（局域网 0.0.0.0） | ✅ 已实现 | 官方 `--patch` 覆盖层（见下）；设置页可切换监听地址并附醒目风险提示 |
 
@@ -34,14 +34,14 @@
 |---|---|---|
 | Windows NSIS 安装版 | ✅ | 标准流程，无需签名也能更新（默认不校验签名） |
 | Windows 便携版 | ⛔ | 便携版无安装器；检测 `process.env.PORTABLE_EXECUTABLE_DIR` 时禁用 updater，改为"发现新版本 → 打开 Release 下载页" |
-| macOS | ⚠️ | electron-updater 要求代码签名；当前未签名 → 捕获错误后降级为"打开 Release 下载页" |
+| macOS | ✅ | v0.2.4 起发布产物已签名和公证，可使用 electron-updater |
 | Linux AppImage | ✅ | 依赖 `APPIMAGE` 环境变量（AppImage 运行时自带） |
 | Linux deb | ⚠️ | 无 apt 仓库 → 降级为"打开 Release 下载页" |
 
 ### 兼容性
 
 - 完全不触碰 DSH：升级的是外壳 + 内置运行时整体，DSH 子进程与 DSH_HOME 数据不受影响；
-- 升级后 DSH 依赖树随应用一起更新（当前锁定 `0.1.2-rc.1`），行为与对应 Release 完全一致。
+- 升级后 DSH 依赖树随应用一起更新（当前依赖线为 `0.1.5-rc.1`）。
 
 ## ② WebUI 开关（已从设置页移除）
 
@@ -93,12 +93,8 @@ it would expose remote code execution to the network; use 127.0.0.1 instead
   隧道等虚拟适配器），并显示醒目的风险警告（0.0.0.0 等于把可执行任意命令的
   agent 开放给整个局域网，仅在可信网络使用）；SSH 隧道说明保留，作为远程访问
   的推荐方案；
-- 远程会话落点：链接不带任何参数，LAN 设备打开后由上游前端的初始选择逻辑
-  自动打开**最近更新的会话**（localStorage 按 origin 隔离，新 origin 无
-  "当前会话"记录时默认落最新会话）。曾评估过"链接携带 ?session + 客户端
-  查询参数兜底"的精确续接方案（主进程轮询桌面窗口当前会话），实测发现普通
-  场景与上游默认行为等价（桌面端通常就停在最新会话），按用户决策移除以减少
-  上游补丁面；
+- 远程会话落点：沿用上游启动日志给出的 LAN URL（新版本包含短期访问 token）；
+  LAN 设备打开后由上游前端的初始选择逻辑选择会话，桌面壳不额外修改会话路由；
 - 非安全上下文 polyfill：`crypto.randomUUID` 只在安全上下文（https/localhost）
   可用，`http://<局域网IP>` 下为 undefined——模型目录、Agent 预设等设置页路径
   用它生成 RPC/消息 id，LAN 打开时报 "crypto.randomUUID is not a function"。
@@ -115,19 +111,18 @@ it would expose remote code execution to the network; use 127.0.0.1 instead
 
 ### 安全立场
 
-- 不修改上游代码、不绕过其 CLI 门禁——用的正是上游为开放形态预留的官方 `--patch` 机制
-  （社区插件如 `@xiaosenho/dsh-plugin-remote-access` 走同一条路，另加了认证与 frpc 隧道）；
+- LAN 绑定使用上游公开的 `--patch` 配置机制，不放宽上游的特权 RPC 边界；
+- Electron、Windows 原生进程和非安全上下文兼容补丁集中在 `scripts/`，由
+  `tests/patches.test.js` 验证补丁锚点和幂等性；依赖升级后锚点失配会阻止构建；
 - 浏览器信任围栏由上游自动生效；无内置认证——非可信网络的用户应改用 SSH 隧道或
   带认证的社区插件。
 
-## 落地计划（待确认后实施）
+## 当前实现位置
 
-1. **设置存储**：`src/settings.cjs`（`userData/settings.json` 读写 + 默认值 + 校验）；
-2. **控制页**：`src/control.html` + `src/preload.cjs`（contextBridge：读设置/存设置/重启/版本检查）;
-   webPreferences 增加 preload（保持 `contextIsolation: true, nodeIntegration: false, sandbox: true`）；
-3. **runBoot 改造**：读设置 → 决定是否 spawn → spawn 参数含 `--host`/`--port`；
-4. **菜单**：新增「设置」，帮助菜单加「检查更新」；
-5. **升级**：`electron-updater` 依赖 + `build.publish`（GitHub）+ 平台降级逻辑（便携版/macOS/deb → 打开下载页）；
-6. **文档**：README（中/英）补充功能说明与 SSH 隧道用法；
-7. **测试**：无头验证固定端口/开关路径（spawn 参数与设置联动）；GUI 部分交用户实测；
-8. **发布**：bump 版本 → CI 三平台 → Release（updater 从 Release 拉新版本）。
+1. **设置存储**：`src/settings.cjs`（`userData/settings.json` 的校验和原子写入）；
+2. **控制页与安全桥**：`src/control.html` + `src/preload.cjs`（`contextIsolation: true`、
+   `nodeIntegration: false`、`sandbox: true`）；
+3. **服务生命周期**：`src/main.cjs`（启动、就绪探测、重启、进程树清理、LAN URL）；
+4. **自动升级**：`electron-updater` + GitHub Releases；便携版和 Linux deb 降级为下载页；
+5. **兼容补丁**：`scripts/patch-*.mjs`，由 `tests/patches.test.js` 和专项测试守护；
+6. **发布**：`.github/workflows/build.yml` 在版本标签上执行三平台测试、打包和 Release。

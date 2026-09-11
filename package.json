@@ -139,7 +139,7 @@
     "artifactName": "${productName}-${version}-win-${arch}-setup.${ext}"
   },
   "devDependencies": {
-    "electron": "^43.4.0",
+    "electron": "^44.2.0",
     "electron-builder": "^26.15.3"
   }
 }

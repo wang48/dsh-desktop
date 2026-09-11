@@ -29,13 +29,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $archive = Get-ChildItem previous/installer -Recurse -Filter app-64.7z | Select-Object -First 1
           if (!$archive) { throw 'Previous installer application archive missing' }
-          7z x $archive.FullName -oprevious/app
+          7z x $archive.FullName "-o$env:RUNNER_TEMP/previous-dsh-app"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Reproduce previous RC startup
         id: previous
         continue-on-error: true
-        run: node scripts/smoke-windows.mjs previous/app/DSH-Desktop.exe
+        run: node scripts/smoke-windows.mjs "$env:RUNNER_TEMP/previous-dsh-app/DSH-Desktop.exe"
       - name: Build current Windows application
         run: npx electron-builder --win --x64 --dir --publish never
       - name: Test current packaged application
-        run: node scripts/smoke-windows.mjs dist/win-unpacked/DSH-Desktop.exe --require-rendered
+        run: |
+          Copy-Item dist/win-unpacked "$env:RUNNER_TEMP/current-dsh-app" -Recurse
+          node scripts/smoke-windows.mjs "$env:RUNNER_TEMP/current-dsh-app/DSH-Desktop.exe" --require-rendered

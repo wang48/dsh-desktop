@@ -32,7 +32,7 @@
   "scripts": {
     "start": "electron .",
     "gen:icon": "node scripts/gen-icon.mjs",
-    "patch": "node scripts/patch-picker-worker.mjs && node scripts/patch-acl-runner-window.mjs && node scripts/patch-secure-context.mjs && node scripts/patch-mac-keychain.mjs",
+    "patch": "node scripts/patch-picker-worker.mjs && node scripts/patch-acl-runner-window.mjs && node scripts/patch-secure-context.mjs && node scripts/patch-mac-keychain.mjs && node scripts/patch-builder-peers.mjs",
     "postinstall": "npm run patch",
     "check:syntax": "node scripts/check-syntax.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.js",

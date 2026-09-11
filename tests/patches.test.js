@@ -9,6 +9,10 @@ const path = require('node:path')
 
 const root = path.join(__dirname, '..')
 const CASES = {
+  'patch-builder-peers.mjs': {
+    file: 'node_modules/app-builder-lib/out/node-module-collector/npmNodeModulesCollector.js',
+    marker: 'dsh-desktop patch: include installed runtime peer dependencies',
+  },
   'patch-mac-keychain.mjs': {
     file: 'node_modules/app-builder-lib/out/codeSign/macCodeSign.js',
     marker: 'dsh-desktop patch: use keychain password for partition list',

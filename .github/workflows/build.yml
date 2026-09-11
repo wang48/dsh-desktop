@@ -139,6 +139,8 @@ jobs:
             内置 DeepSeek Harness：**@deepseek-ai/dsh 0.1.5-rc.1**。
 
             ### 改进
+            - 修复 electron-builder 遗漏 DSH 运行时 peerDependencies 的问题，避免独立安装后出现 `ERR_MODULE_NOT_FOUND`（如 `dsh-attachment`、`dsh-session-persistence`、`dsh-session-query` 和 `dsh-util-time`）。
+            - 新增真实打包依赖收集回归测试；所有 Windows 成品启动检查均脱离源码依赖目录，避免开发环境掩盖缺失依赖。
             - 修复 RC.5 的 Windows 构建失败：语法检查改为 Node.js 逐文件枚举，消除 Windows 不展开通配符的问题，并完整检查所有 JavaScript 文件。
             - 发布前实际安装并启动 Windows 安装版、启动便携版，验证隔离数据目录下的本机/LAN 服务、token/Cookie 认证和 Electron 窗口页面加载。
             - Windows 安装版和便携版都通过启动验证后才允许发布，避免再次出现缺少 Windows 产物的 RC。

@@ -73,7 +73,17 @@ jobs:
 
       - name: Verify packaged Windows startup
         if: runner.os == 'Windows'
-        run: node scripts/smoke-windows.mjs
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $installer = (Resolve-Path "dist/DSH-Desktop-$version-win-x64-setup.exe").Path
+          $installDir = Join-Path $env:RUNNER_TEMP 'DSH installed 测试'
+          $process = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          node scripts/smoke-windows.mjs "$installDir/DSH-Desktop.exe" --require-rendered
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-windows.mjs "dist/DSH-Desktop-$version-win-x64-portable.exe" --require-rendered
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -92,11 +102,10 @@ jobs:
           retention-days: 7
 
   release:
-    name: Publish Release (successful platforms)
+    name: Publish Release (Windows verified)
     # The matrix keeps running when one platform fails. Always enter this job
-    # for a tag so artifacts from the platforms that did finish still ship;
-    # `download-artifact` ignores the failed matrix leg because it uploaded
-    # nothing. A cancelled build is the one case where publishing is skipped.
+    # for a tag, but require both smoke-tested Windows artifacts before publishing.
+    # Successful macOS/Linux artifacts are included when available.
     if: ${{ always() && startsWith(github.ref, 'refs/tags/') && needs.build.result != 'cancelled' }}
     needs: build
     runs-on: ubuntu-latest
@@ -110,11 +119,11 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Verify at least one platform artifact
+      - name: Require tested Windows installer and portable artifacts
         shell: bash
         run: |
-          if ! find artifacts -type f -print -quit | grep -q .; then
-            echo "No platform artifacts were produced; refusing to publish an empty release."
+          if ! compgen -G 'artifacts/*-win-x64-setup.exe' > /dev/null || ! compgen -G 'artifacts/*-win-x64-portable.exe' > /dev/null; then
+            echo "Tested Windows installer and portable artifacts are required; refusing an incomplete release."
             exit 1
           fi
 
@@ -127,16 +136,13 @@ jobs:
           body: |
             ## DSH Desktop ${{ github.ref_name }}
 
-            基于 DeepSeek Harness（@deepseek-ai/dsh 0.1.5-rc.1）的桌面外壳。
-
             内置 DeepSeek Harness：**@deepseek-ai/dsh 0.1.5-rc.1**。
 
             ### 改进
-            - 新增主分支和 Pull Request CI，在 Node.js 22/24 上执行语法检查及完整集成测试；发版任务改为最小权限、并发保护和明确超时。
-            - 修复固定端口不可用时仍把无效配置写入设置文件的问题，现在验证通过后才持久化。
-            - 修正 Electron 43 本地打包命令和 Node.js 最低版本要求，补齐 Windows、macOS、Linux 平台命令。
-            - 修复 `fast-uri` 与 `js-yaml` 的高危传递依赖漏洞，当前 `npm audit` 为 0。
-            - 完善中英文 README、项目元数据、贡献与安全政策、CODEOWNERS、Issue / PR 模板和 Dependabot 配置。
+            - 修复 RC.5 的 Windows 构建失败：语法检查改为 Node.js 逐文件枚举，消除 Windows 不展开通配符的问题，并完整检查所有 JavaScript 文件。
+            - 发布前实际安装并启动 Windows 安装版、启动便携版，验证隔离数据目录下的本机/LAN 服务、token/Cookie 认证和 Electron 窗口页面加载。
+            - Windows 安装版和便携版都通过启动验证后才允许发布，避免再次出现缺少 Windows 产物的 RC。
+            - 服务日志新增桌面页面加载失败和渲染进程退出诊断，便于排查机器或已有数据相关的启动异常。
 
             ### 安全说明
             - `0.0.0.0` 监听会向局域网开放可执行本机命令的 agent，仅建议在可信网络使用；公网访问请使用 SSH 隧道或其他认证层。

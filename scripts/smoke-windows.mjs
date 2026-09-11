@@ -29,11 +29,13 @@ for (const host of ['127.0.0.1', '0.0.0.0']) {
       const logFile = join(home, 'server.log')
       if (existsSync(logFile)) log = readFileSync(logFile, 'utf8')
       baseUrl = log.match(/server ready: (http:\/\/127\.0\.0\.1:\d+)/)?.[1]
-      if (baseUrl) break
+      if (baseUrl && (!process.argv.includes('--require-rendered') || log.includes('desktop Web UI loaded'))) break
       if (child.exitCode !== null || child.signalCode || /boot failed:|child spawn error:/.test(log)) break
       await delay(1000)
     }
     assert.ok(baseUrl, `Packaged desktop did not become ready (host=${host}, exit=${child.exitCode})`)
+    if (process.argv.includes('--require-rendered')) assert.match(log, /desktop Web UI loaded/, 'Electron window must load the Web UI')
+    assert.doesNotMatch(log, /desktop page load failed:|desktop renderer exited:/)
     const launchUrl = log.match(/^dsh web: (http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9_-]+)/m)?.[1]
     assert.ok(launchUrl, 'Missing authenticated startup URL')
     const request = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(15000) })

@@ -1,7 +1,7 @@
 {
   "name": "dsh-desktop",
   "productName": "DSH-Desktop",
-  "version": "0.2.7-rc.5",
+  "version": "0.2.7-rc.6",
   "description": "Cross-platform desktop app for DeepSeek Harness, powered by Electron",
   "author": {
     "name": "wang48",

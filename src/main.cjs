@@ -436,6 +436,17 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
       },
     })
     win.once('ready-to-show', () => win.show())
+    win.webContents.on('did-finish-load', () => {
+      if (server && new URL(win.webContents.getURL()).origin === server.baseUrl) {
+        logMain('desktop Web UI loaded')
+      }
+    })
+    win.webContents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
+      if (isMainFrame && code !== -3) logMain(`desktop page load failed: ${code} ${description}`)
+    })
+    win.webContents.on('render-process-gone', (_event, details) => {
+      logMain(`desktop renderer exited: ${details.reason} (${details.exitCode})`)
+    })
     win.on('closed', () => {
       win = null
       shutdown()

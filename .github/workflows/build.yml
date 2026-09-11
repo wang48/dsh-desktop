@@ -71,6 +71,10 @@ jobs:
             ${{ matrix.cmd }}
           fi
 
+      - name: Verify packaged Windows startup
+        if: runner.os == 'Windows'
+        run: node scripts/smoke-windows.mjs
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:

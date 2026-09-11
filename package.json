@@ -34,7 +34,7 @@
     "gen:icon": "node scripts/gen-icon.mjs",
     "patch": "node scripts/patch-picker-worker.mjs && node scripts/patch-acl-runner-window.mjs && node scripts/patch-secure-context.mjs && node scripts/patch-mac-keychain.mjs",
     "postinstall": "npm run patch",
-    "check:syntax": "node --check src/main.cjs && node --check src/preload.cjs && node --check src/settings.cjs && node --check scripts/*.mjs && node --check tests/*.js",
+    "check:syntax": "node scripts/check-syntax.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "check": "npm run check:syntax && npm test",
     "dist": "electron-builder --publish never",

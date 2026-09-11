@@ -1,0 +1,41 @@
+name: Windows packaged startup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  startup:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Download previous Windows installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download v0.2.7-rc.4 --pattern '*win-x64-setup.exe' --dir previous
+      - name: Extract previous packaged application
+        shell: pwsh
+        run: |
+          7z x previous/DSH-Desktop-0.2.7-rc.4-win-x64-setup.exe -oprevious/installer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $archive = Get-ChildItem previous/installer -Recurse -Filter app-64.7z | Select-Object -First 1
+          if (!$archive) { throw 'Previous installer application archive missing' }
+          7z x $archive.FullName -oprevious/app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Reproduce previous RC startup
+        id: previous
+        continue-on-error: true
+        run: node scripts/smoke-windows.mjs previous/app/DSH-Desktop.exe
+      - name: Build current Windows application
+        run: npx electron-builder --win --x64 --dir --publish never
+      - name: Test current packaged application
+        run: node scripts/smoke-windows.mjs

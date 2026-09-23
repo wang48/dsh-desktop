@@ -136,15 +136,12 @@ jobs:
           body: |
             ## DSH Desktop ${{ github.ref_name }}
 
-            内置 DeepSeek Harness：**@deepseek-ai/dsh 0.1.5-rc.1**。
+            内置 DeepSeek Harness：**@deepseek-ai/dsh 0.1.5-rc.3**。
 
             ### 改进
-            - 修复 electron-builder 遗漏 DSH 运行时 peerDependencies 的问题，避免独立安装后出现 `ERR_MODULE_NOT_FOUND`（如 `dsh-attachment`、`dsh-session-persistence`、`dsh-session-query` 和 `dsh-util-time`）。
-            - 新增真实打包依赖收集回归测试；所有 Windows 成品启动检查均脱离源码依赖目录，避免开发环境掩盖缺失依赖。
-            - 修复 RC.5 的 Windows 构建失败：语法检查改为 Node.js 逐文件枚举，消除 Windows 不展开通配符的问题，并完整检查所有 JavaScript 文件。
-            - 发布前实际安装并启动 Windows 安装版、启动便携版，验证隔离数据目录下的本机/LAN 服务、token/Cookie 认证和 Electron 窗口页面加载。
-            - Windows 安装版和便携版都通过启动验证后才允许发布，避免再次出现缺少 Windows 产物的 RC。
-            - 服务日志新增桌面页面加载失败和渲染进程退出诊断，便于排查机器或已有数据相关的启动异常。
+            - DSH 主包从 **0.1.5-rc.1** 升级至 **0.1.5-rc.3**，精确锁定主包版本并更新 npm 解析的必需依赖；未批量修改其他 DSH 包的直接依赖声明。
+            - 保留桌面认证链接、局域网 HTTP 兼容、Windows 目录选择器与隐藏控制台、运行时依赖收集及 macOS 钥匙串补丁。
+            - 保留完整语法与集成检查，以及 Windows 安装版、便携版脱离源码环境的真实启动、token/Cookie 认证和窗口加载验证。两种 Windows 成品均通过后才允许发布。
 
             ### 安全说明
             - `0.0.0.0` 监听会向局域网开放可执行本机命令的 agent，仅建议在可信网络使用；公网访问请使用 SSH 隧道或其他认证层。

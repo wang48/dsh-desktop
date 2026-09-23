@@ -64,7 +64,7 @@
     "@deepseek-ai/dsh-timeout": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-workflow": "^0.1.5-rc.1",
     "electron-updater": "^6.8.9",
-    "koffi": "^3.1.5"
+    "koffi": "^3.3.1"
   },
   "build": {
     "appId": "com.deepseek.dsh.desktop",

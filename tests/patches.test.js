@@ -6,6 +6,7 @@ const assert = require('node:assert')
 const { spawnSync } = require('node:child_process')
 const fs = require('node:fs')
 const path = require('node:path')
+const { dshPackagePath } = require('../scripts/dsh-package-path.cjs')
 
 const root = path.join(__dirname, '..')
 const CASES = {
@@ -18,15 +19,15 @@ const CASES = {
     marker: 'dsh-desktop patch: use keychain password for partition list',
   },
   'patch-picker-worker.mjs': {
-    file: 'node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/worker.cjs',
+    file: dshPackagePath('@deepseek-ai/dsh-host-directory-picker-native', 'lib/worker.cjs'),
     marker: 'return koffi.decode(pointer.subarray(0, pointerSize), "str16");',
   },
   'patch-acl-runner-window.mjs': {
-    file: 'node_modules/@deepseek-ai/dsh-win32-process/lib/index.js',
+    file: dshPackagePath('@deepseek-ai/dsh-win32-process', 'lib/index.js'),
     marker: 'dsh-desktop patch: STARTF_USESHOWWINDOW + SW_HIDE for restricted-token children',
   },
   'patch-secure-context.mjs': {
-    file: 'node_modules/@deepseek-ai/dsh-client-modules/lib/index.js',
+    file: dshPackagePath('@deepseek-ai/dsh-client-modules', 'lib/index.js'),
     marker: 'dsh-desktop patch: insecure-context crypto.randomUUID',
   },
 }
@@ -41,8 +42,16 @@ for (const [script, { file, marker }] of Object.entries(CASES)) {
     assert.strictEqual(first.status, 0, `${script} first run exited ${first.status}`)
     const second = run()
     assert.strictEqual(second.status, 0, `${script} re-run (idempotency) exited ${second.status}`)
-    const content = fs.readFileSync(path.join(root, file), 'utf8')
-    assert.ok(content.includes(marker), `${script}: marker missing in ${file} — patch did not land`)
+    const content = fs.readFileSync(path.resolve(root, file), 'utf8').replace(/\r\n/g, '\n')
+    if (script === 'patch-acl-runner-window.mjs') {
+      for (const input of ['stdIn.read', 'stdio.stdin']) {
+        const fixed = `dwFlags: 257,\n\t\t\twShowWindow: 0,\n\t\t\thStdInput: ${input},`
+        const patched = `dwFlags: 256 | 1,\n\t\t\twShowWindow: 0, // ${marker}\n\t\t\thStdInput: ${input},`
+        assert.ok(content.includes(fixed) || content.includes(patched), `hidden-console flags missing: ${input}`)
+      }
+    } else {
+      assert.ok(content.includes(marker), `${script}: marker missing in ${file} — patch did not land`)
+    }
     if (script === 'patch-picker-worker.mjs') assert.ok(!content.includes('koffi.view('), 'picker must not create external ArrayBuffers')
   })
 }

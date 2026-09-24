@@ -8,11 +8,9 @@
 // 修复：readUtf16 改为 lstrlenW 量长 + memcpy 拷贝进 V8 自有 Buffer，
 // 该路径在 Electron 下验证可用。
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dshPackagePath } from './dsh-package-path.cjs'
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const workerPath = join(root, 'node_modules', '@deepseek-ai', 'dsh-host-directory-picker-native', 'lib', 'worker.cjs')
+const workerPath = dshPackagePath('@deepseek-ai/dsh-host-directory-picker-native', 'lib/worker.cjs')
 const MARKER = 'dsh-desktop patch: koffi.view is unsupported under Electron'
 
 const ORIGINAL = `function readUtf16(koffi, address) {

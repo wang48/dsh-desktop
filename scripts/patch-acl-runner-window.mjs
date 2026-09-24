@@ -11,13 +11,11 @@
 // 让受限令牌子进程的控制台窗口创建即隐藏（不闪烁、不弹窗，也不触发上游
 // 记载的 CREATE_NO_WINDOW 崩溃路径）。已验证：窗口存在但 IsWindowVisible=0。
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dshPackagePath } from './dsh-package-path.cjs'
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 // 0.1.2-rc.1 moved process creation into the shared win32-process package;
 // keep the patch on that stable package entry instead of a hashed ACL bundle.
-const target = join(root, 'node_modules', '@deepseek-ai', 'dsh-win32-process', 'lib', 'index.js')
+const target = dshPackagePath('@deepseek-ai/dsh-win32-process', 'lib/index.js')
 const MARKER = 'dsh-desktop patch: STARTF_USESHOWWINDOW + SW_HIDE for restricted-token children'
 
 // spawnSandboxed（管道 stdio）
@@ -44,6 +42,13 @@ if (!existsSync(target)) {
 }
 
 const source = readFileSync(target, 'utf8').replace(/\r\n/g, '\n')
+// DSH 0.1.7-rc.1 includes the same flags upstream, for both launch paths.
+if (['stdIn.read', 'stdio.stdin'].every(input => source.includes(
+  `\t\t\tcb: 104,\n\t\t\tdwFlags: 257,\n\t\t\twShowWindow: 0,\n\t\t\thStdInput: ${input},`
+))) {
+  console.log('[patch-acl-runner-window] upstream hidden-console implementation, skip')
+  process.exit(0)
+}
 if (source.includes(MARKER)) {
   console.log('[patch-acl-runner-window] already patched, skip')
   process.exit(0)

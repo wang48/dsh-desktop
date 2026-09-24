@@ -13,11 +13,9 @@
 // 行之前插入 polyfill 行；dsh-host-webserver 的 renderIndexInjections 会把它
 // 渲染为紧随 <head> 的 <script>，与旧版 injectBootManifest 注入语义一致。
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dshPackagePath } from './dsh-package-path.cjs'
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const target = join(root, 'node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js')
+const target = dshPackagePath('@deepseek-ai/dsh-client-modules', 'lib/index.js')
 const MARKER = 'dsh-desktop patch: insecure-context crypto.randomUUID'
 
 // bootInjections() 返回数组的头部：首个 {kind:"script", placement:"head"} 行

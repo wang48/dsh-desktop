@@ -34,4 +34,12 @@ function lanLaunchUrl(address, port, launchUrl) {
   return url.href
 }
 
-module.exports = { createLaunchUrlReader, lanLaunchUrl }
+function isReadyResponse(statusCode, headers) {
+  // DSH 0.1.7 uses directory-relative './'; both forms return to the root
+  // of the validated launch URL. Never accept arbitrary redirect targets.
+  return statusCode === 200 || (statusCode === 303 &&
+    (headers.location === '/' || headers.location === './') &&
+    Boolean(headers['set-cookie']?.length))
+}
+
+module.exports = { createLaunchUrlReader, lanLaunchUrl, isReadyResponse }

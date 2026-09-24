@@ -23,7 +23,7 @@ const net = require('node:net')
 const http = require('node:http')
 const os = require('node:os')
 const settingsStore = require('./settings.cjs')
-const { createLaunchUrlReader, lanLaunchUrl } = require('./launch-url.cjs')
+const { createLaunchUrlReader, lanLaunchUrl, isReadyResponse } = require('./launch-url.cjs')
 
 const APP_ID = 'com.deepseek.dsh.desktop'
 const APP_NAME = 'DSH Desktop'
@@ -255,8 +255,8 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
     args.push('--no-open')
 
     // --expose-internals：HMR 服务需要访问 Node 内部 ESM loader。
-    // 系统 node 下有 node-addon-require-builtin 原生插件兜底，但 Electron 内置
-    // Node 的 ABI 与该插件不匹配，必须显式传此标志走纯 JS 路径。
+    // 新版 DSH 还使用原生 loader，Electron 必须锁定到它支持的运行时指纹；
+    // 此标志本身不能绕过原生 loader 的兼容性要求。
     logMain(`spawning dsh web host=${host} port=${port}`)
     const child = spawn(process.execPath, args, {
       cwd: dshHome,
@@ -299,7 +299,7 @@ pre{background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;
         if (!instance.launchUrl) return
         const req = http.get(instance.launchUrl, { timeout: 3000 }, (res) => {
           res.resume()
-          if (res.statusCode === 200 || (res.statusCode === 303 && res.headers.location === '/' && res.headers['set-cookie'])) {
+          if (isReadyResponse(res.statusCode, res.headers)) {
             clearInterval(timer)
             resolve()
           } else {

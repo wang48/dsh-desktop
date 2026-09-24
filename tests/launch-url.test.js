@@ -1,7 +1,22 @@
 'use strict'
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const { createLaunchUrlReader, lanLaunchUrl } = require('../src/launch-url.cjs')
+const { createLaunchUrlReader, lanLaunchUrl, isReadyResponse } = require('../src/launch-url.cjs')
+
+test('readiness accepts only a successful page or cookie-setting root redirect', () => {
+  assert.equal(isReadyResponse(200, {}), true)
+  for (const location of ['/', './']) {
+    assert.equal(isReadyResponse(303, { location, 'set-cookie': ['session=test'] }), true)
+    assert.equal(isReadyResponse(303, { location }), false)
+    assert.equal(isReadyResponse(303, { location, 'set-cookie': [] }), false)
+  }
+  for (const location of ['https://example.com/', '//example.com/', '/other', '../', '/?token=test', undefined]) {
+    assert.equal(isReadyResponse(303, { location, 'set-cookie': ['session=test'] }), false)
+  }
+  for (const status of [301, 302, 307, 401, 403, 500]) {
+    assert.equal(isReadyResponse(status, { location: './', 'set-cookie': ['session=test'] }), false)
+  }
+})
 
 test('captures a split authenticated startup URL and shares the same token on LAN', () => {
   const reader = createLaunchUrlReader('http://127.0.0.1:3080')

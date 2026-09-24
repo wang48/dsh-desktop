@@ -6,7 +6,7 @@ const assert = require('node:assert')
 const { spawn, spawnSync } = require('node:child_process')
 const fs = require('node:fs')
 const path = require('node:path')
-const { createLaunchUrlReader } = require('../src/launch-url.cjs')
+const { createLaunchUrlReader, isReadyResponse } = require('../src/launch-url.cjs')
 
 const root = path.join(__dirname, '..')
 const dshBin = path.join(root, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
@@ -74,6 +74,10 @@ test(`${runtime.name}: dsh web binds 0.0.0.0 and authenticates the LAN homepage`
     assert.equal(exchange.status, 303, 'launch token must exchange for a browser cookie')
     const cookie = exchange.headers.get('set-cookie')
     assert.ok(cookie, 'launch response must set a session cookie')
+    assert.equal(isReadyResponse(exchange.status, {
+      location: exchange.headers.get('location'),
+      'set-cookie': exchange.headers.getSetCookie(),
+    }), true, 'desktop readiness must recognize the actual upstream auth response')
     const response = await fetch(baseUrl, { headers: { cookie: cookie.split(';')[0] }, signal: AbortSignal.timeout(15000) })
     assert.equal(response.status, 200, 'desktop entry page must load')
     const html = await response.text()

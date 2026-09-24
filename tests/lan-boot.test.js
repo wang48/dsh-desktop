@@ -26,7 +26,13 @@ function killTree(child) {
   } catch { /* best effort */ }
 }
 
-test('dsh web binds 0.0.0.0 via --patch and prints the LAN URL', { timeout: BOOT_TIMEOUT_MS + 30000 }, async () => {
+// Exercise the shipped Electron runtime too: native DSH loader compatibility
+// depends on its exact Node/V8 fingerprint, not just the system Node version.
+for (const runtime of [
+  { name: 'Node', executable: process.execPath, args: [], env: {} },
+  { name: 'Electron', executable: require('electron'), args: ['--expose-internals'], env: { ELECTRON_RUN_AS_NODE: '1' } },
+]) {
+test(`${runtime.name}: dsh web binds 0.0.0.0 and authenticates the LAN homepage`, { timeout: BOOT_TIMEOUT_MS + 30000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(__dirname, '.tmp-lan-'))
   const home = path.join(tmp, 'home')
   fs.mkdirSync(home, { recursive: true })
@@ -34,8 +40,8 @@ test('dsh web binds 0.0.0.0 via --patch and prints the LAN URL', { timeout: BOOT
   fs.writeFileSync(patchFile, LAN_PATCH)
   const logFile = path.join(tmp, 'boot.log')
   const fd = fs.openSync(logFile, 'w')
-  const env = { ...process.env, DSH_HOME: home }
-  const child = spawn(process.execPath, [dshBin, 'web', '--patch', patchFile, '--port', '0', '--no-open'], {
+  const env = { ...process.env, ...runtime.env, DSH_HOME: home }
+  const child = spawn(runtime.executable, [...runtime.args, dshBin, 'web', '--patch', patchFile, '--port', '0', '--no-open'], {
     cwd: home,
     env,
     stdio: ['ignore', fd, fd],
@@ -81,3 +87,4 @@ test('dsh web binds 0.0.0.0 via --patch and prints the LAN URL', { timeout: BOOT
     } catch { /* 受限环境下 junction（profiles/node_modules）可能删不掉，留待外部清理 */ }
   }
 })
+}
